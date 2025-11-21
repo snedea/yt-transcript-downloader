@@ -1,0 +1,39 @@
+{
+  "generated": "2025-11-21T01:26:20.662Z",
+  "baseURL": "http://localhost:3001",
+  "projectType": "web-app",
+  "screenshots": [
+    {
+      "filename": "hero.png",
+      "path": "docs/screenshots/hero.png",
+      "type": "hero",
+      "description": "Main application view - YouTube Transcript Downloader"
+    },
+    {
+      "filename": "feature-01-single-download.png",
+      "path": "docs/screenshots/feature-01-single-download.png",
+      "type": "feature",
+      "description": "Single video transcript download interface"
+    },
+    {
+      "filename": "feature-02-bulk-download.png",
+      "path": "docs/screenshots/feature-02-bulk-download.png",
+      "type": "feature",
+      "description": "Bulk playlist/channel download interface"
+    },
+    {
+      "filename": "full-page.png",
+      "path": "docs/screenshots/full-page.png",
+      "type": "feature",
+      "description": "Full page view of the application"
+    },
+    {
+      "filename": "feature-03-mobile.png",
+      "path": "docs/screenshots/feature-03-mobile.png",
+      "type": "feature",
+      "description": "Mobile responsive view"
+    }
+  ],
+  "total": 5,
+  "failed": 0
+}

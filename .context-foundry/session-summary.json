@@ -1,0 +1,101 @@
+{
+  "build_start": "2025-11-20T18:23:37.162090",
+  "context_metrics": {
+    "max_context_window": 200000,
+    "model": "claude-sonnet-4",
+    "by_phase": {
+      "phase_scout": {
+        "tokens_used": 3944,
+        "percentage": 1.97,
+        "zone": "smart",
+        "budget_allocated": 14000,
+        "over_budget": false,
+        "duration_seconds": 312.4,
+        "exit_code": 0,
+        "timestamp": "2025-11-20T19:14:41.213924"
+      },
+      "phase_architect": {
+        "tokens_used": 12827,
+        "percentage": 6.41,
+        "zone": "smart",
+        "budget_allocated": 14000,
+        "over_budget": false,
+        "duration_seconds": 394.99,
+        "exit_code": 0,
+        "timestamp": "2025-11-20T19:21:22.365793"
+      },
+      "phase_builder": {
+        "tokens_used": 9155,
+        "percentage": 4.58,
+        "zone": "smart",
+        "budget_allocated": 40000,
+        "over_budget": false,
+        "duration_seconds": 58.12,
+        "exit_code": 0,
+        "timestamp": "2025-11-20T19:22:26.704296"
+      },
+      "phase_test": {
+        "tokens_used": 2344,
+        "percentage": 1.17,
+        "zone": "smart",
+        "budget_allocated": 40000,
+        "over_budget": false,
+        "duration_seconds": 96.8,
+        "exit_code": 0,
+        "timestamp": "2025-11-20T19:24:12.459926"
+      },
+      "phase_screenshot": {
+        "tokens_used": 176,
+        "percentage": 0.09,
+        "zone": "smart",
+        "budget_allocated": 3000,
+        "over_budget": false,
+        "duration_seconds": 139.39,
+        "exit_code": 0,
+        "timestamp": "2025-11-20T19:26:38.674461"
+      },
+      "phase_documentation": {
+        "tokens_used": 441,
+        "percentage": 0.22,
+        "zone": "smart",
+        "budget_allocated": 10000,
+        "over_budget": false,
+        "duration_seconds": 228.07,
+        "exit_code": 0,
+        "timestamp": "2025-11-20T19:30:32.710057"
+      }
+    }
+  },
+  "phases": {
+    "phase_scout": {
+      "status": "completed",
+      "duration_seconds": 312.4,
+      "timestamp": "2025-11-20T19:14:41.213929"
+    },
+    "phase_architect": {
+      "status": "completed",
+      "duration_seconds": 394.99,
+      "timestamp": "2025-11-20T19:21:22.365799"
+    },
+    "phase_builder": {
+      "status": "completed",
+      "duration_seconds": 58.12,
+      "timestamp": "2025-11-20T19:22:26.704305"
+    },
+    "phase_test": {
+      "status": "completed",
+      "duration_seconds": 96.8,
+      "timestamp": "2025-11-20T19:24:12.459930"
+    },
+    "phase_screenshot": {
+      "status": "completed",
+      "duration_seconds": 139.39,
+      "timestamp": "2025-11-20T19:26:38.674465"
+    },
+    "phase_documentation": {
+      "status": "completed",
+      "duration_seconds": 228.07,
+      "timestamp": "2025-11-20T19:30:32.710067"
+    }
+  }
+}
