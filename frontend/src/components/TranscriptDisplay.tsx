@@ -1,12 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { downloadTextFile, copyToClipboard, sanitizeFilename } from '@/utils/download'
+import { downloadTextFile, copyToClipboard, generateFilename } from '@/utils/download'
 
 interface TranscriptDisplayProps {
   transcript: string
   videoTitle: string
   videoId: string
+  author?: string
+  uploadDate?: string
   tokensUsed?: number
 }
 
@@ -14,6 +16,8 @@ export default function TranscriptDisplay({
   transcript,
   videoTitle,
   videoId,
+  author,
+  uploadDate,
   tokensUsed
 }: TranscriptDisplayProps) {
   const [copied, setCopied] = useState(false)
@@ -27,7 +31,7 @@ export default function TranscriptDisplay({
   }
 
   const handleDownload = () => {
-    const filename = `${sanitizeFilename(videoTitle || videoId)}_transcript.txt`
+    const filename = generateFilename(videoTitle || videoId, author, uploadDate)
     downloadTextFile(transcript, filename)
   }
 

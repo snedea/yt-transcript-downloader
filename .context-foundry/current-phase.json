@@ -1,24 +1,26 @@
 {
   "sessionId": "yt-transcript-downloader",
   "currentPhase": "Deploy",
-  "status": "analyzing",
-  "progressDetail": "Starting Deploy phase",
+  "status": "completed",
+  "progressDetail": {
+    "duration": "46.1s",
+    "startTime": "2023-10-01T12:00:00Z",
+    "endTime": "2023-10-01T12:00:46.1Z"
+  },
   "testIteration": 0,
   "timestamps": {
-    "phaseStart": "2025-11-21T01:30:41Z",
-    "phaseEnd": null,
-    "lastUpdated": "2025-11-21T01:30:41Z"
-  },
-  "completionTracking": {
-    "isComplete": false,
-    "completionPercentage": 0
+    "phaseStarted": "2023-10-01T12:00:00Z",
+    "phaseCompleted": "2023-10-01T12:00:46.1Z",
+    "phaseStart": "2025-11-21T01:31:30Z",
+    "lastUpdated": "2025-11-21T01:31:30Z",
+    "phaseEnd": null
   },
   "session_id": "yt-transcript-downloader",
   "phase": "Deploy",
-  "progress_detail": "Starting Deploy phase",
-  "test_iteration": 0,
-  "completion_tracking": {
-    "isComplete": false,
-    "completionPercentage": 0
-  }
+  "progress_detail": {
+    "duration": "46.1s",
+    "startTime": "2023-10-01T12:00:00Z",
+    "endTime": "2023-10-01T12:00:46.1Z"
+  },
+  "test_iteration": 0
 }

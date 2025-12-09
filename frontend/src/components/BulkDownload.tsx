@@ -6,7 +6,7 @@ import VideoSelector from './VideoSelector'
 import TranscriptDisplay from './TranscriptDisplay'
 import ProgressBar from './ProgressBar'
 import ErrorMessage from './ErrorMessage'
-import { downloadTextFile, sanitizeFilename } from '@/utils/download'
+import { downloadTextFile, generateFilename } from '@/utils/download'
 
 export default function BulkDownload() {
   const [playlistUrl, setPlaylistUrl] = useState('')
@@ -47,7 +47,7 @@ export default function BulkDownload() {
 
     transcripts.results.forEach((result) => {
       if (result.transcript) {
-        const filename = `${sanitizeFilename(result.title)}_transcript.txt`
+        const filename = generateFilename(result.title, result.author, result.upload_date)
         downloadTextFile(result.transcript, filename)
       }
     })
@@ -173,6 +173,8 @@ export default function BulkDownload() {
                     transcript={result.transcript}
                     videoTitle={result.title}
                     videoId={result.video_id}
+                    author={result.author}
+                    uploadDate={result.upload_date}
                     tokensUsed={result.tokens_used}
                   />
                 ) : (

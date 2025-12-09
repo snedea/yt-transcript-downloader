@@ -24,6 +24,8 @@ class TranscriptResponse(BaseModel):
     transcript: str
     video_title: str
     video_id: str
+    author: str = "Unknown"
+    upload_date: str = ""
     tokens_used: Optional[int] = None
 
 
@@ -44,6 +46,8 @@ class BulkTranscriptRequest(BaseModel):
 class TranscriptResult(BaseModel):
     video_id: str
     title: str
+    author: str = "Unknown"
+    upload_date: str = ""
     transcript: Optional[str] = None
     error: Optional[str] = None
     tokens_used: Optional[int] = None
@@ -95,13 +99,15 @@ async def get_single_transcript(request: TranscriptRequest):
             # Don't fail entire request if cleaning fails, just log warning
             print(f"Warning: Transcript cleaning failed: {clean_result['error']}")
     
-    # Get video title (fallback to video ID)
-    video_title = await youtube_service.get_video_title(video_id)
+    # Get video metadata (title, author, upload date)
+    metadata = await youtube_service.get_video_metadata(video_id)
     
     return TranscriptResponse(
         transcript=transcript_text,
-        video_title=video_title,
+        video_title=metadata.get("title", video_id),
         video_id=video_id,
+        author=metadata.get("author", "Unknown"),
+        upload_date=metadata.get("upload_date", ""),
         tokens_used=tokens_used
     )
 
@@ -148,12 +154,17 @@ async def get_bulk_transcripts(request: BulkTranscriptRequest):
     if len(request.video_ids) > 100:
         raise HTTPException(status_code=400, detail="Maximum 100 videos allowed")
     
-    # Semaphore to limit concurrent requests
-    semaphore = asyncio.Semaphore(5)
-    
-    async def fetch_single(video_id: str) -> TranscriptResult:
-        """Fetch transcript for a single video with semaphore"""
+    # Semaphore to limit concurrent requests (only 1 at a time to avoid rate limiting)
+    semaphore = asyncio.Semaphore(1)
+
+    async def fetch_single(video_id: str, index: int) -> TranscriptResult:
+        """Fetch transcript for a single video with semaphore and delay"""
         async with semaphore:
+            # Add aggressive delay between requests to avoid triggering YouTube's anti-spam
+            # 2-3 seconds between each request
+            if index > 0:
+                await asyncio.sleep(2.5)  # Fixed 2.5 second delay between requests
+
             # Fetch transcript
             result = await youtube_service.get_transcript(video_id)
             
@@ -174,19 +185,21 @@ async def get_bulk_transcripts(request: BulkTranscriptRequest):
                     transcript_text = clean_result["cleaned_transcript"]
                     tokens_used = clean_result["tokens_used"]
             
-            # Get title
-            title = await youtube_service.get_video_title(video_id)
+            # Get metadata
+            metadata = await youtube_service.get_video_metadata(video_id)
             
             return TranscriptResult(
                 video_id=video_id,
-                title=title,
+                title=metadata.get("title", video_id),
+                author=metadata.get("author", "Unknown"),
+                upload_date=metadata.get("upload_date", ""),
                 transcript=transcript_text,
                 tokens_used=tokens_used
             )
     
-    # Fetch all transcripts concurrently
+    # Fetch all transcripts concurrently with staggered delays
     results = await asyncio.gather(
-        *[fetch_single(vid) for vid in request.video_ids],
+        *[fetch_single(vid, idx) for idx, vid in enumerate(request.video_ids)],
         return_exceptions=True
     )
     

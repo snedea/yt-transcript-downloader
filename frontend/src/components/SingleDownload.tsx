@@ -73,6 +73,8 @@ export default function SingleDownload() {
           transcript={data.transcript}
           videoTitle={data.video_title}
           videoId={data.video_id}
+          author={data.author}
+          uploadDate={data.upload_date}
           tokensUsed={data.tokens_used}
         />
       )}

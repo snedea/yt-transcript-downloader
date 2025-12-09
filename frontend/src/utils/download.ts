@@ -22,7 +22,50 @@ export const copyToClipboard = async (text: string): Promise<boolean> => {
 
 export const sanitizeFilename = (filename: string): string => {
   return filename
-    .replace(/[^a-z0-9]/gi, '_')
-    .replace(/_{2,}/g, '_')
-    .substring(0, 100)
+    .replace(/[<>:"/\\|?*]/g, '') // Remove invalid filename characters
+    .replace(/\s+/g, ' ') // Normalize whitespace
+    .trim()
+    .substring(0, 200) // Allow longer filenames
 }
+
+export const formatDate = (dateString: string): string => {
+  // dateString is in YYYYMMDD format from yt-dlp
+  if (!dateString || dateString.length !== 8) {
+    return ''
+  }
+
+  const year = dateString.substring(0, 4)
+  const month = dateString.substring(4, 6)
+  const day = dateString.substring(6, 8)
+
+  return `${year}-${month}-${day}`
+}
+
+export const generateFilename = (
+  title: string,
+  author?: string,
+  uploadDate?: string
+): string => {
+  const parts: string[] = []
+
+  // Add author if available
+  if (author && author !== 'Unknown') {
+    parts.push(author)
+  }
+
+  // Add title (always present)
+  parts.push(title)
+
+  // Add formatted date if available
+  if (uploadDate) {
+    const formattedDate = formatDate(uploadDate)
+    if (formattedDate) {
+      parts.push(formattedDate)
+    }
+  }
+
+  // Join with " - " and sanitize
+  const filename = parts.join(' - ')
+  return sanitizeFilename(filename) + '.txt'
+}
+

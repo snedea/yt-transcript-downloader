@@ -63,6 +63,16 @@
         "duration_seconds": 228.07,
         "exit_code": 0,
         "timestamp": "2025-11-20T19:30:32.710057"
+      },
+      "phase_deploy": {
+        "tokens_used": 112,
+        "percentage": 0.06,
+        "zone": "smart",
+        "budget_allocated": 6000,
+        "over_budget": false,
+        "duration_seconds": 46.08,
+        "exit_code": 0,
+        "timestamp": "2025-11-20T19:31:27.414247"
       }
     }
   },
@@ -96,6 +106,18 @@
       "status": "completed",
       "duration_seconds": 228.07,
       "timestamp": "2025-11-20T19:30:32.710067"
+    },
+    "phase_deploy": {
+      "status": "completed",
+      "duration_seconds": 46.08,
+      "timestamp": "2025-11-20T19:31:27.414254"
     }
+  },
+  "deployment": {
+    "status": "skipped",
+    "reason": "GitHub token missing required scopes (needs 'repo' or 'public_repo')",
+    "commit_sha": "70efe596aaeb9a2f9b6e739a5007805bb9cb951e",
+    "local_commit_created": true,
+    "attempted_at": "\"2025-11-21T01:31:21Z\""
   }
 }

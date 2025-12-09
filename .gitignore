@@ -50,3 +50,6 @@ htmlcov/
 *.pyo
 *.pyd
 .Python
+
+# PID files
+*.pid

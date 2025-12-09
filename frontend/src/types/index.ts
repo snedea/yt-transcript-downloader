@@ -8,7 +8,10 @@ export interface Video {
 export interface Transcript {
   video_id: string
   video_title: string
+  title: string  // For bulk results
   transcript: string
+  author?: string
+  upload_date?: string
   tokens_used?: number
   error?: string
 }
@@ -29,6 +32,8 @@ export interface TranscriptResponse {
   transcript: string
   video_title: string
   video_id: string
+  author?: string
+  upload_date?: string
   tokens_used?: number
 }
 
