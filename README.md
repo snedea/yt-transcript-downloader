@@ -1,24 +1,40 @@
-# YouTube Transcript Downloader
+# YouTube Content Analyzer
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Node.js 18+](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-009688.svg)](https://fastapi.tiangolo.com/)
 [![Next.js 14](https://img.shields.io/badge/Next.js-14+-black.svg)](https://nextjs.org/)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](https://www.docker.com/)
 
-> 🎬 A modern full-stack web application for downloading and AI-cleaning YouTube video transcripts. Supports single videos, playlists, and channels.
-
-![Application Screenshot](docs/screenshots/hero.png)
+> 🎬 A modern full-stack web application for downloading YouTube transcripts, analyzing rhetoric, and detecting manipulation in video content.
 
 ## ✨ Features
 
+### Transcript Downloads
 - 📹 **Single Video Downloads** - Fetch transcripts from any YouTube video with available captions
 - 📋 **Bulk Downloads** - Download transcripts from entire playlists or channels at once
-- 🤖 **AI-Powered Cleaning** - Optional GPT-4o-mini integration to clean and format transcripts
+- 🤖 **AI-Powered Cleaning** - GPT-4o-mini integration to clean and format transcripts
 - 📎 **Export Options** - Copy to clipboard or download as `.txt` files
-- 🌙 **Modern UI** - Clean, responsive design with dark mode support
-- 📊 **Progress Tracking** - Real-time progress indicators for bulk operations
-- ⚡ **Fast & Efficient** - Parallelized bulk downloads for optimal performance
+- 💾 **Transcript Caching** - SQLite-backed cache for fast retrieval of previously fetched transcripts
+
+### Content Analysis (NEW)
+- 🔍 **5-Dimension Trust Analysis** - Evaluate content across:
+  - **Epistemic Integrity** - Scholarly vs sloppy reasoning
+  - **Argument Quality** - Logic, evidence, and coherence
+  - **Manipulation Risk** - Coercive persuasion markers
+  - **Rhetorical Craft** - Style and persuasion techniques
+  - **Fairness/Balance** - One-sidedness detection
+- 📊 **Claim Detection** - Extract and categorize claims (factual, causal, normative, predictions)
+- ✅ **Claim Verification** - Optional verification via web search (Deep mode)
+- 🎯 **Manipulation Technique Detection** - Identify 34+ manipulation techniques across language, reasoning, and propaganda categories
+- 📈 **Visual Reports** - Interactive charts, dimension scores, and detailed breakdowns
+
+### User Experience
+- 🌙 **Dark Mode** - Full dark mode support throughout
+- 📱 **Responsive Design** - Works on desktop and mobile
+- ⚡ **Fast & Efficient** - Parallelized downloads, cached results
+- 🕐 **History Panel** - Quick access to previously analyzed transcripts
 
 ## 📸 Screenshots
 
@@ -54,43 +70,62 @@
 
 ## 🚀 Quick Start
 
-### Prerequisites
+### Docker (Recommended)
+
+The easiest way to run the application:
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/snedea/yt-transcript-downloader.git
+cd yt-transcript-downloader
+
+# 2. Configure environment
+cp .env.example .env
+# Edit .env and add your OPENAI_API_KEY
+
+# 3. Start with Docker
+./START.sh
+```
+
+#### START.sh Commands
+
+| Command | Description |
+|---------|-------------|
+| `./START.sh` | Start the application (default) |
+| `./START.sh stop` | Stop the application |
+| `./START.sh restart` | Restart the application |
+| `./START.sh logs` | Follow container logs |
+| `./START.sh status` | Show container status |
+| `./START.sh build` | Rebuild Docker images |
+| `./START.sh clean` | Remove containers and volumes |
+
+### Manual Installation (Development)
+
+<details>
+<summary>Click to expand manual setup instructions</summary>
+
+#### Prerequisites
 
 - **Python 3.11+** - [Download](https://www.python.org/downloads/)
 - **Node.js 18+** - [Download](https://nodejs.org/)
-- **OpenAI API Key** *(optional)* - For AI transcript cleaning
-
-### One-Command Start
-
-```bash
-# Make start script executable and run
-chmod +x START.sh && ./START.sh
-```
-
-Or follow the manual setup below.
-
-### Manual Installation
+- **OpenAI API Key** - Required for AI cleaning and analysis
 
 #### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/yt-transcript-downloader.git
+git clone https://github.com/snedea/yt-transcript-downloader.git
 cd yt-transcript-downloader
 ```
 
 #### 2. Backend Setup
 
 ```bash
-# Navigate to backend
 cd backend
 
 # Create virtual environment
 python -m venv venv
-
-# Activate virtual environment
 source venv/bin/activate  # Linux/macOS
-# OR
-venv\Scripts\activate     # Windows
+# OR: venv\Scripts\activate  # Windows
 
 # Install dependencies
 pip install -r requirements.txt
@@ -102,7 +137,6 @@ uvicorn app.main:app --reload --port 8000
 #### 3. Frontend Setup
 
 ```bash
-# Open a new terminal and navigate to frontend
 cd frontend
 
 # Install dependencies
@@ -112,19 +146,14 @@ npm install
 npm run dev
 ```
 
-#### 4. Configure Environment (Optional)
-
-For AI transcript cleaning, create a `.env` file in the project root:
+#### 4. Configure Environment
 
 ```bash
 cp .env.example .env
+# Edit .env and add your OPENAI_API_KEY
 ```
 
-Then add your OpenAI API key:
-
-```env
-OPENAI_API_KEY=sk-your-api-key-here
-```
+</details>
 
 ### Access the Application
 
@@ -143,6 +172,19 @@ OPENAI_API_KEY=sk-your-api-key-here
 3. *(Optional)* Check "Clean with AI" for formatted output
 4. Click **Get Transcript**
 5. Copy to clipboard or download as `.txt`
+
+### Analyzing Content for Manipulation
+
+1. Fetch a transcript (or select from History)
+2. Click **Analyze for Manipulation**
+3. Choose analysis mode:
+   - **Quick Mode** (~15s) - Single-pass analysis, good for most use cases
+   - **Deep Mode** (~60s) - Multi-pass with claim verification
+4. Review the analysis report:
+   - **Overview** - Overall trust score and grade
+   - **Dimensions** - 5-dimension breakdown with explanations
+   - **Claims** - Detected claims with verification status
+   - **Devices** - Manipulation techniques found
 
 ### Bulk Downloading from Playlists
 
@@ -294,34 +336,42 @@ npm test -- --watch
 yt-transcript-downloader/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py              # FastAPI application
-│   │   ├── config.py            # Configuration
+│   │   ├── main.py                    # FastAPI application
+│   │   ├── config.py                  # Configuration
 │   │   ├── routers/
-│   │   │   ├── transcript.py    # Transcript endpoints
-│   │   │   └── playlist.py      # Playlist endpoints
+│   │   │   ├── transcript.py          # Transcript endpoints
+│   │   │   ├── playlist.py            # Playlist endpoints
+│   │   │   ├── cache.py               # Cache/history endpoints
+│   │   │   └── analysis.py            # Analysis endpoints
 │   │   ├── services/
-│   │   │   ├── youtube.py       # YouTube transcript service
-│   │   │   ├── openai_service.py # AI cleaning service
-│   │   │   └── playlist.py      # Playlist extraction
-│   │   └── utils/
-│   │       ├── url_parser.py    # URL parsing utilities
-│   │       └── validators.py    # Input validation
-│   ├── tests/                   # Backend tests
-│   └── requirements.txt         # Python dependencies
+│   │   │   ├── youtube.py             # YouTube transcript service
+│   │   │   ├── openai_service.py      # AI cleaning service
+│   │   │   ├── cache_service.py       # SQLite caching
+│   │   │   ├── manipulation_pipeline.py # 5-dimension analysis
+│   │   │   └── web_search.py          # Claim verification
+│   │   ├── models/                    # Pydantic models
+│   │   └── data/
+│   │       └── manipulation_toolkit.py # Technique definitions
+│   ├── tests/                         # Backend tests
+│   ├── Dockerfile                     # Backend container
+│   └── requirements.txt               # Python dependencies
 ├── frontend/
 │   ├── src/
-│   │   ├── app/                 # Next.js App Router pages
-│   │   ├── components/          # React components
-│   │   ├── hooks/               # Custom React hooks
-│   │   ├── services/            # API client
-│   │   └── types/               # TypeScript definitions
-│   └── package.json             # Node.js dependencies
-├── docs/
-│   └── screenshots/             # Application screenshots
-├── .env.example                 # Environment template
-├── START.sh                     # One-command startup
-├── STOP.sh                      # Stop all services
-└── README.md                    # This file
+│   │   ├── app/                       # Next.js App Router
+│   │   ├── components/
+│   │   │   ├── analysis/              # Analysis UI components
+│   │   │   ├── SingleDownload.tsx     # Single video UI
+│   │   │   ├── BulkDownload.tsx       # Bulk download UI
+│   │   │   └── TranscriptHistory.tsx  # History panel
+│   │   ├── hooks/                     # Custom React hooks
+│   │   ├── services/api.ts            # API client
+│   │   └── types/index.ts             # TypeScript definitions
+│   ├── Dockerfile                     # Frontend container
+│   └── package.json                   # Node.js dependencies
+├── docker-compose.yml                 # Container orchestration
+├── .env.example                       # Environment template
+├── START.sh                           # Docker CLI wrapper
+└── README.md                          # This file
 ```
 
 ## ⚙️ Configuration
@@ -356,6 +406,15 @@ yt-transcript-downloader/
 ### Common Issues
 
 <details>
+<summary><strong>Docker won't start</strong></summary>
+
+- Ensure Docker Desktop is running
+- Check port availability: `lsof -i :3000` and `lsof -i :8000`
+- Stop existing containers: `./START.sh clean`
+- Rebuild images: `./START.sh build`
+</details>
+
+<details>
 <summary><strong>Backend won't start</strong></summary>
 
 - Check Python version: `python --version` (requires 3.11+)
@@ -370,6 +429,14 @@ yt-transcript-downloader/
 - Check Node.js version: `node --version` (requires 18+)
 - Delete `node_modules` and reinstall: `rm -rf node_modules && npm install`
 - Check if port 3000 is available: `lsof -i :3000`
+</details>
+
+<details>
+<summary><strong>Analysis not working</strong></summary>
+
+- Verify `OPENAI_API_KEY` is set in `.env`
+- Check API key has credits at [OpenAI Usage](https://platform.openai.com/usage)
+- View logs: `./START.sh logs`
 </details>
 
 <details>
