@@ -957,7 +957,7 @@ Score all 5 dimensions and provide summary. Return as JSON."""
 
             if tech_id not in device_examples:
                 device_examples[tech_id] = []
-            device_examples[tech_id].append(ann.explanation[:100])
+            device_examples[tech_id].append(ann.explanation)
 
             if tech_id not in device_severity or ann.severity.value > device_severity[tech_id].value:
                 device_severity[tech_id] = ann.severity
