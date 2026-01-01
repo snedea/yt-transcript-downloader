@@ -3,8 +3,13 @@
 import React, { useState, useEffect } from 'react'
 import { downloadTextFile, copyToClipboard, generateFilename, formatTranscriptWithTimestamps } from '@/utils/download'
 import { useRhetoricalAnalysis } from '@/hooks/useRhetoricalAnalysis'
+import { useManipulationAnalysis } from '@/hooks/useManipulationAnalysis'
 import { RhetoricalAnalysis } from '@/components/analysis/RhetoricalAnalysis'
-import type { TranscriptSegment } from '@/types'
+import { ManipulationAnalysis } from '@/components/analysis/ManipulationAnalysis'
+import { AnalysisModeSelector, AnalysisProgressBar, CompactModeSelector } from '@/components/analysis/AnalysisModeSelector'
+import type { TranscriptSegment, AnalysisMode } from '@/types'
+
+type AnalysisType = 'rhetorical' | 'manipulation'
 
 interface TranscriptDisplayProps {
   transcript: string
@@ -34,23 +39,53 @@ export default function TranscriptDisplay({
   const [copied, setCopied] = useState(false)
   const [showAnalysis, setShowAnalysis] = useState(cachedAnalysis ? true : false)
   const [verifyQuotes, setVerifyQuotes] = useState(true)
+  const [analysisType, setAnalysisType] = useState<AnalysisType>('manipulation')
+  const [showModeSelector, setShowModeSelector] = useState(true)  // Show mode selector by default for manipulation
 
+  // Rhetorical analysis hook (v1.0)
   const {
-    loading: analyzing,
-    error: analysisError,
-    result: analysisResult,
-    isCached: isAnalysisCached,
-    analyzeTranscript,
-    setFromCache,
-    reset: resetAnalysis
+    loading: rhetoricalLoading,
+    error: rhetoricalError,
+    result: rhetoricalResult,
+    isCached: isRhetoricalCached,
+    analyzeTranscript: analyzeRhetorical,
+    setFromCache: setRhetoricalFromCache,
+    reset: resetRhetorical
   } = useRhetoricalAnalysis()
+
+  // Manipulation analysis hook (v2.0)
+  const {
+    loading: manipulationLoading,
+    error: manipulationError,
+    result: manipulationResult,
+    isCached: isManipulationCached,
+    progress: manipulationProgress,
+    mode: analysisMode,
+    setMode: setAnalysisMode,
+    analyzeTranscript: analyzeManipulation,
+    setFromCache: setManipulationFromCache,
+    reset: resetManipulation
+  } = useManipulationAnalysis()
+
+  // Combined state
+  const analyzing = analysisType === 'rhetorical' ? rhetoricalLoading : manipulationLoading
+  const analysisError = analysisType === 'rhetorical' ? rhetoricalError : manipulationError
+  const analysisResult = analysisType === 'rhetorical' ? rhetoricalResult : manipulationResult
+  const isAnalysisCached = analysisType === 'rhetorical' ? isRhetoricalCached : isManipulationCached
 
   // Load cached analysis on mount if available
   useEffect(() => {
-    if (cachedAnalysis && !analysisResult) {
-      setFromCache(cachedAnalysis)
+    if (cachedAnalysis && !rhetoricalResult && !manipulationResult) {
+      // Check if it's a v2.0 analysis (has dimension_scores)
+      if ('dimension_scores' in cachedAnalysis) {
+        setAnalysisType('manipulation')
+        setManipulationFromCache(cachedAnalysis as any)
+      } else {
+        setAnalysisType('rhetorical')
+        setRhetoricalFromCache(cachedAnalysis)
+      }
     }
-  }, [cachedAnalysis, analysisResult, setFromCache])
+  }, [cachedAnalysis, rhetoricalResult, manipulationResult, setRhetoricalFromCache, setManipulationFromCache])
 
   const handleCopy = async () => {
     const success = await copyToClipboard(transcript)
@@ -76,18 +111,33 @@ export default function TranscriptDisplay({
 
   const handleAnalyze = async () => {
     setShowAnalysis(true)
-    await analyzeTranscript(transcript, transcriptData, {
-      verifyQuotes,
-      videoTitle,
-      videoAuthor: author,
-      videoId  // Pass videoId for caching
-    })
+    setShowModeSelector(false)
+
+    if (analysisType === 'rhetorical') {
+      await analyzeRhetorical(transcript, transcriptData, {
+        verifyQuotes,
+        videoTitle,
+        videoAuthor: author,
+        videoId
+      })
+    } else {
+      await analyzeManipulation(transcript, transcriptData, {
+        mode: analysisMode,
+        verifyClaims: analysisMode === 'deep',
+        videoTitle,
+        videoAuthor: author,
+        videoId
+      })
+    }
   }
 
   const handleCloseAnalysis = () => {
     setShowAnalysis(false)
-    resetAnalysis()
+    resetRhetorical()
+    resetManipulation()
   }
+
+  const wordCount = transcript.split(/\s+/).length
 
   return (
     <div className="space-y-6">
@@ -153,8 +203,66 @@ export default function TranscriptDisplay({
             )}
           </div>
 
-          {/* Rhetorical Analysis Section */}
+          {/* Analysis Section */}
           <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+            {/* Analysis Type Toggle */}
+            <div className="flex items-center gap-4 mb-4">
+              <div className="flex rounded-lg bg-gray-100 dark:bg-gray-700 p-1">
+                <button
+                  onClick={() => { setAnalysisType('manipulation'); setShowModeSelector(true) }}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                    analysisType === 'manipulation'
+                      ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  }`}
+                >
+                  🔬 Trust Analysis
+                </button>
+                <button
+                  onClick={() => { setAnalysisType('rhetorical'); setShowModeSelector(false) }}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                    analysisType === 'rhetorical'
+                      ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  }`}
+                >
+                  🎭 Rhetorical Analysis
+                </button>
+              </div>
+              <span className="text-xs text-gray-500 dark:text-gray-500">
+                {analysisType === 'manipulation' ? 'v2.0 - 5 dimensions' : 'v1.0 - 4 pillars'}
+              </span>
+            </div>
+
+            {/* Mode Selector for Manipulation Analysis */}
+            {analysisType === 'manipulation' && showModeSelector && (
+              <div className="mb-4">
+                <AnalysisModeSelector
+                  mode={analysisMode}
+                  onChange={setAnalysisMode}
+                  disabled={analyzing}
+                  wordCount={wordCount}
+                />
+              </div>
+            )}
+
+            {/* Analysis Options for Rhetorical */}
+            {analysisType === 'rhetorical' && (
+              <div className="mb-4">
+                <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                  <input
+                    type="checkbox"
+                    checked={verifyQuotes}
+                    onChange={(e) => setVerifyQuotes(e.target.checked)}
+                    disabled={analyzing}
+                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  Verify quotes via web search
+                </label>
+              </div>
+            )}
+
+            {/* Analyze Button */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
               <button
                 onClick={handleAnalyze}
@@ -179,31 +287,37 @@ export default function TranscriptDisplay({
                         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                       />
                     </svg>
-                    Analyzing Rhetoric...
+                    {analysisType === 'manipulation'
+                      ? `Running ${analysisMode === 'deep' ? 'Deep' : 'Quick'} Analysis...`
+                      : 'Analyzing Rhetoric...'
+                    }
                   </>
                 ) : (
                   <>
-                    <span>🎭</span>
-                    Analyze Rhetoric
+                    <span>{analysisType === 'manipulation' ? '🔬' : '🎭'}</span>
+                    {analysisType === 'manipulation'
+                      ? `${analysisMode === 'deep' ? 'Deep' : 'Quick'} Analysis`
+                      : 'Analyze Rhetoric'
+                    }
                   </>
                 )}
               </button>
 
-              <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                <input
-                  type="checkbox"
-                  checked={verifyQuotes}
-                  onChange={(e) => setVerifyQuotes(e.target.checked)}
+              {/* Quick mode selector inline for manipulation */}
+              {analysisType === 'manipulation' && !showModeSelector && (
+                <CompactModeSelector
+                  mode={analysisMode}
+                  onChange={setAnalysisMode}
                   disabled={analyzing}
-                  className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                 />
-                Verify quotes via web search
-              </label>
+              )}
             </div>
 
             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-              Analyze the transcript for rhetorical techniques using AI. Identifies persuasion strategies,
-              scores the four pillars (Logos, Pathos, Ethos, Kairos), and detects quotes/attributions.
+              {analysisType === 'manipulation'
+                ? `Detect manipulation tactics and score content trustworthiness across 5 dimensions. Higher scores = more trustworthy. ${analysisMode === 'deep' ? 'Deep mode verifies factual claims.' : ''}`
+                : 'Analyze the transcript for rhetorical techniques using AI. Identifies persuasion strategies, scores the four pillars (Logos, Pathos, Ethos, Kairos), and detects quotes/attributions.'
+              }
             </p>
           </div>
         </div>
@@ -238,19 +352,33 @@ export default function TranscriptDisplay({
           <div className="flex flex-col items-center justify-center text-center">
             <div className="w-16 h-16 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-4" />
             <h4 className="font-medium text-indigo-800 dark:text-indigo-200 mb-2">
-              Analyzing Rhetorical Techniques...
+              {analysisType === 'manipulation'
+                ? `Running ${analysisMode === 'deep' ? 'Deep' : 'Quick'} Analysis...`
+                : 'Analyzing Rhetorical Techniques...'
+              }
             </h4>
+
+            {/* Progress bar for manipulation analysis */}
+            {analysisType === 'manipulation' && manipulationProgress && (
+              <div className="w-full max-w-md mb-4">
+                <AnalysisProgressBar progress={manipulationProgress} />
+              </div>
+            )}
+
             <p className="text-sm text-indigo-600 dark:text-indigo-400 max-w-md">
-              Our AI is examining the transcript for persuasion techniques, scoring the four pillars of rhetoric,
-              and {verifyQuotes ? 'verifying quotes via web search' : 'identifying potential quotes'}.
-              This may take 30-60 seconds.
+              {analysisType === 'manipulation'
+                ? analysisMode === 'deep'
+                  ? 'Running multi-pass analysis: extracting claims, scanning for manipulation techniques, scoring dimensions, and verifying claims. This takes about 60 seconds.'
+                  : 'Analyzing content across 5 dimensions: Epistemic Integrity, Argument Quality, Manipulation Risk, Rhetorical Craft, and Fairness. This takes about 15 seconds.'
+                : `Our AI is examining the transcript for persuasion techniques, scoring the four pillars of rhetoric, and ${verifyQuotes ? 'verifying quotes via web search' : 'identifying potential quotes'}. This may take 30-60 seconds.`
+              }
             </p>
           </div>
         </div>
       )}
 
       {/* Analysis Results */}
-      {analysisResult && showAnalysis && (
+      {showAnalysis && (rhetoricalResult || manipulationResult) && (
         <div className="relative">
           <button
             onClick={handleCloseAnalysis}
@@ -261,13 +389,25 @@ export default function TranscriptDisplay({
               <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
             </svg>
           </button>
-          <RhetoricalAnalysis
-            result={analysisResult}
-            videoTitle={videoTitle}
-            videoAuthor={author}
-            isCached={isAnalysisCached}
-            analysisDate={analysisDate}
-          />
+
+          {/* Render appropriate analysis component */}
+          {manipulationResult ? (
+            <ManipulationAnalysis
+              result={manipulationResult}
+              videoTitle={videoTitle}
+              videoAuthor={author}
+              isCached={isManipulationCached}
+              analysisDate={analysisDate}
+            />
+          ) : rhetoricalResult ? (
+            <RhetoricalAnalysis
+              result={rhetoricalResult}
+              videoTitle={videoTitle}
+              videoAuthor={author}
+              isCached={isRhetoricalCached}
+              analysisDate={analysisDate}
+            />
+          ) : null}
         </div>
       )}
     </div>

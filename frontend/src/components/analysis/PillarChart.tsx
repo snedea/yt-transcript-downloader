@@ -93,7 +93,7 @@ export function PillarChart({ pillarScores, variant = 'bar' }: PillarChartProps)
             <div className="flex items-center justify-between text-sm">
               <span className="flex items-center gap-2">
                 <span>{PILLAR_SYMBOLS[pillar.pillar]}</span>
-                <span className="font-medium text-gray-700">{pillar.pillar_name}</span>
+                <span className="font-medium text-gray-700 dark:text-gray-300">{pillar.pillar_name}</span>
               </span>
               <span
                 className="font-bold"
@@ -102,7 +102,7 @@ export function PillarChart({ pillarScores, variant = 'bar' }: PillarChartProps)
                 {pillar.score}/100
               </span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-3">
+            <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-3">
               <div
                 className="h-3 rounded-full transition-all duration-500"
                 style={{
@@ -128,11 +128,11 @@ export function PillarDetailCard({ pillar }: PillarDetailCardProps) {
 
   return (
     <div
-      className="p-4 rounded-lg border-2 transition-shadow hover:shadow-md"
+      className="p-4 rounded-lg border-2 transition-shadow hover:shadow-md bg-white dark:bg-gray-800"
       style={{ borderColor: color + '40' }}
     >
       <div className="flex items-center justify-between mb-2">
-        <h4 className="font-semibold text-gray-800 flex items-center gap-2">
+        <h4 className="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
           <span className="text-xl">{symbol}</span>
           {pillar.pillar_name}
         </h4>
@@ -144,12 +144,12 @@ export function PillarDetailCard({ pillar }: PillarDetailCardProps) {
         </span>
       </div>
 
-      <p className="text-sm text-gray-600 mb-3">{pillar.explanation}</p>
+      <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">{pillar.explanation}</p>
 
       {pillar.key_examples.length > 0 && (
         <div className="mt-2">
-          <p className="text-xs font-medium text-gray-500 mb-1">Key Examples:</p>
-          <ul className="text-xs text-gray-600 space-y-1">
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Key Examples:</p>
+          <ul className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
             {pillar.key_examples.slice(0, 2).map((example, idx) => (
               <li key={idx} className="italic truncate">&ldquo;{example}&rdquo;</li>
             ))}
@@ -169,7 +169,7 @@ export function PillarDetailCard({ pillar }: PillarDetailCardProps) {
             </span>
           ))}
           {pillar.contributing_techniques.length > 3 && (
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-gray-500 dark:text-gray-400">
               +{pillar.contributing_techniques.length - 3} more
             </span>
           )}

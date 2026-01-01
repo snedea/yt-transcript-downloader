@@ -48,9 +48,9 @@ export function RhetoricalAnalysis({ result, videoTitle, videoAuthor, isCached, 
   ]
 
   return (
-    <div className="bg-white rounded-lg shadow-lg overflow-hidden" ref={reportRef}>
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden" ref={reportRef}>
       {/* Header */}
-      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-6">
+      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-700 dark:to-purple-700 text-white p-6">
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-3 mb-1">
@@ -101,7 +101,7 @@ export function RhetoricalAnalysis({ result, videoTitle, videoAuthor, isCached, 
       </div>
 
       {/* Tab Navigation */}
-      <div className="border-b">
+      <div className="border-b border-gray-200 dark:border-gray-700">
         <div className="flex">
           {tabs.map((tab) => (
             <button
@@ -109,8 +109,8 @@ export function RhetoricalAnalysis({ result, videoTitle, videoAuthor, isCached, 
               onClick={() => setActiveTab(tab.id)}
               className={`flex-1 py-3 px-4 text-sm font-medium transition-colors ${
                 activeTab === tab.id
-                  ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50'
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                  ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
               }`}
             >
               <span className="mr-1">{tab.icon}</span>
@@ -137,14 +137,14 @@ export function RhetoricalAnalysis({ result, videoTitle, videoAuthor, isCached, 
       </div>
 
       {/* Footer with Export Options */}
-      <div className="bg-gray-50 px-6 py-4 flex items-center justify-between border-t">
-        <div className="text-xs text-gray-500">
+      <div className="bg-gray-50 dark:bg-gray-900 px-6 py-4 flex items-center justify-between border-t border-gray-200 dark:border-gray-700">
+        <div className="text-xs text-gray-500 dark:text-gray-400">
           Analysis completed in {result.analysis_duration_seconds}s | {result.tokens_used} tokens used
         </div>
         <div className="flex gap-2">
           <button
             onClick={handleExportMarkdown}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
           >
             Export Markdown
           </button>
@@ -175,14 +175,14 @@ function OverviewTab({ result }: { result: AnalysisResult }) {
           />
         </div>
         <div>
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">The Four Pillars</h3>
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">The Four Pillars</h3>
           <PillarChart pillarScores={result.pillar_scores} variant="bar" />
         </div>
       </div>
 
       {/* Pillar Details */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Pillar Analysis</h3>
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">Pillar Analysis</h3>
         <div className="grid md:grid-cols-2 gap-4">
           {result.pillar_scores.map((pillar) => (
             <PillarDetailCard key={pillar.pillar} pillar={pillar} />
@@ -197,10 +197,10 @@ function TechniquesTab({ result }: { result: AnalysisResult }) {
   return (
     <div>
       <div className="mb-4">
-        <h3 className="text-lg font-semibold text-gray-800">
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
           Rhetorical Techniques ({result.total_techniques_found})
         </h3>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-500 dark:text-gray-400">
           {result.unique_techniques_used} unique techniques identified across the transcript
         </p>
       </div>
@@ -216,10 +216,10 @@ function QuotesTab({ result }: { result: AnalysisResult }) {
   return (
     <div>
       <div className="mb-4">
-        <h3 className="text-lg font-semibold text-gray-800">
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
           Quote Attribution Analysis
         </h3>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-500 dark:text-gray-400">
           {result.verified_quotes} of {result.total_quotes_found} potential quotes verified via web search
         </p>
       </div>
@@ -233,8 +233,8 @@ function SummaryTab({ result }: { result: AnalysisResult }) {
     <div className="space-y-6">
       {/* Executive Summary */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-800 mb-3">Executive Summary</h3>
-        <div className="prose prose-sm max-w-none text-gray-700">
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">Executive Summary</h3>
+        <div className="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300">
           {result.executive_summary.split('\n').map((paragraph, idx) => (
             <p key={idx} className="mb-3">{paragraph}</p>
           ))}
@@ -244,7 +244,7 @@ function SummaryTab({ result }: { result: AnalysisResult }) {
       {/* Strengths */}
       {result.strengths.length > 0 && (
         <div>
-          <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3 flex items-center gap-2">
             <span className="text-green-500">+</span> Rhetorical Strengths
           </h3>
           <ul className="space-y-2">
@@ -253,7 +253,7 @@ function SummaryTab({ result }: { result: AnalysisResult }) {
                 <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
-                <span className="text-gray-700">{strength}</span>
+                <span className="text-gray-700 dark:text-gray-300">{strength}</span>
               </li>
             ))}
           </ul>
@@ -263,7 +263,7 @@ function SummaryTab({ result }: { result: AnalysisResult }) {
       {/* Areas for Improvement */}
       {result.areas_for_improvement.length > 0 && (
         <div>
-          <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3 flex items-center gap-2">
             <span className="text-amber-500">!</span> Areas for Improvement
           </h3>
           <ul className="space-y-2">
@@ -272,7 +272,7 @@ function SummaryTab({ result }: { result: AnalysisResult }) {
                 <svg className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                 </svg>
-                <span className="text-gray-700">{area}</span>
+                <span className="text-gray-700 dark:text-gray-300">{area}</span>
               </li>
             ))}
           </ul>

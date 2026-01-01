@@ -9,7 +9,13 @@ import type {
   AnalysisRequest,
   AnalysisResult,
   AnalysisStatus,
-  TranscriptSegment
+  TranscriptSegment,
+  ManipulationAnalysisResult,
+  ManipulationAnalysisRequest,
+  AnalysisMode,
+  ManipulationToolkit,
+  DimensionDefinition,
+  ManipulationTechnique
 } from '@/types'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
@@ -160,7 +166,7 @@ export const playlistApi = {
 
 export const analysisApi = {
   /**
-   * Analyze a transcript for rhetorical techniques
+   * Analyze a transcript for rhetorical techniques (v1.0)
    */
   analyzeRhetoric: async (
     transcript: string,
@@ -182,6 +188,33 @@ export const analysisApi = {
   },
 
   /**
+   * Enhanced manipulation analysis with 5 dimensions (v2.0)
+   * Modes: 'quick' (~15s) or 'deep' (~60s with claim verification)
+   */
+  analyzeManipulation: async (
+    transcript: string,
+    transcriptData?: TranscriptSegment[],
+    options?: {
+      mode?: AnalysisMode
+      verifyClaims?: boolean
+      includeSegments?: boolean
+      videoTitle?: string
+      videoAuthor?: string
+    }
+  ): Promise<ManipulationAnalysisResult> => {
+    const response = await api.post<ManipulationAnalysisResult>('/api/analysis/manipulation', {
+      transcript,
+      transcript_data: transcriptData,
+      analysis_mode: options?.mode ?? 'quick',
+      verify_claims: options?.verifyClaims ?? false,
+      include_segments: options?.includeSegments ?? true,
+      video_title: options?.videoTitle,
+      video_author: options?.videoAuthor
+    })
+    return response.data
+  },
+
+  /**
    * Check if analysis services are available
    */
   getStatus: async (): Promise<AnalysisStatus> => {
@@ -190,7 +223,7 @@ export const analysisApi = {
   },
 
   /**
-   * Get the complete rhetorical toolkit reference
+   * Get the complete rhetorical toolkit reference (v1.0)
    */
   getToolkit: async (): Promise<any> => {
     const response = await api.get('/api/analysis/toolkit')
@@ -198,10 +231,43 @@ export const analysisApi = {
   },
 
   /**
-   * Get details about a specific technique
+   * Get the manipulation toolkit reference (v2.0)
+   * Includes 5 dimensions and 34 manipulation techniques
+   */
+  getManipulationToolkit: async (): Promise<ManipulationToolkit> => {
+    const response = await api.get<ManipulationToolkit>('/api/analysis/manipulation/toolkit')
+    return response.data
+  },
+
+  /**
+   * Get manipulation toolkit as text summary
+   */
+  getManipulationToolkitSummary: async (): Promise<string> => {
+    const response = await api.get<{ summary: string }>('/api/analysis/manipulation/toolkit/summary')
+    return response.data.summary
+  },
+
+  /**
+   * Get details about a specific rhetorical technique
    */
   getTechniqueDetails: async (techniqueId: string): Promise<any> => {
     const response = await api.get(`/api/analysis/techniques/${techniqueId}`)
+    return response.data
+  },
+
+  /**
+   * Get details about a specific manipulation technique
+   */
+  getManipulationTechniqueDetails: async (techniqueId: string): Promise<ManipulationTechnique> => {
+    const response = await api.get<ManipulationTechnique>(`/api/analysis/manipulation/techniques/${techniqueId}`)
+    return response.data
+  },
+
+  /**
+   * Get details about a specific analysis dimension
+   */
+  getDimensionDetails: async (dimensionId: string): Promise<DimensionDefinition> => {
+    const response = await api.get<DimensionDefinition>(`/api/analysis/manipulation/dimensions/${dimensionId}`)
     return response.data
   }
 }

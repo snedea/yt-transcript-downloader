@@ -43,7 +43,7 @@ export function ScoreGauge({ score, grade, label = 'Overall Score' }: ScoreGauge
             cy={size / 2}
             r={radius}
             fill="none"
-            stroke="#e5e7eb"
+            className="stroke-gray-200 dark:stroke-gray-600"
             strokeWidth={strokeWidth}
           />
           {/* Progress circle */}
@@ -81,7 +81,7 @@ export function ScoreGauge({ score, grade, label = 'Overall Score' }: ScoreGauge
       </div>
 
       {label && (
-        <p className="mt-2 text-sm text-gray-600 font-medium">{label}</p>
+        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 font-medium">{label}</p>
       )}
     </div>
   )
@@ -98,14 +98,14 @@ export function MiniScore({ score, label, color }: MiniScoreProps) {
   const displayColor = color || defaultColor
 
   return (
-    <div className="flex flex-col items-center p-3 bg-gray-50 rounded-lg">
+    <div className="flex flex-col items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
       <span
         className="text-2xl font-bold"
         style={{ color: displayColor }}
       >
         {score}
       </span>
-      <span className="text-xs text-gray-600 mt-1 text-center">{label}</span>
+      <span className="text-xs text-gray-600 dark:text-gray-400 mt-1 text-center">{label}</span>
     </div>
   )
 }

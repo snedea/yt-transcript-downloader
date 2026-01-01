@@ -145,3 +145,172 @@ export interface AnalysisStatus {
   }
   message: string
 }
+
+// ==========================================
+// Manipulation Analysis Types (v2.0)
+// ==========================================
+
+export type AnalysisMode = 'quick' | 'deep'
+
+export type ClaimType = 'factual' | 'causal' | 'normative' | 'prediction' | 'prescriptive'
+
+export type VerificationStatus = 'verified' | 'disputed' | 'unverified' | 'unverifiable'
+
+export type DimensionType =
+  | 'epistemic_integrity'
+  | 'argument_quality'
+  | 'manipulation_risk'
+  | 'rhetorical_craft'
+  | 'fairness_balance'
+
+export type ManipulationSeverity = 'low' | 'medium' | 'high'
+
+export type TechniqueCategory = 'language' | 'reasoning' | 'propaganda'
+
+// Dimension score for each of the 5 analysis dimensions
+export interface DimensionScore {
+  dimension: DimensionType
+  dimension_name: string
+  score: number  // 0-100
+  confidence: number
+  explanation: string
+  red_flags: string[]
+  green_flags: string[]
+  key_examples: string[]
+}
+
+// Detected claims with optional verification
+export interface DetectedClaim {
+  claim_text: string
+  claim_type: ClaimType
+  confidence: number
+  segment_index: number
+  span: [number, number]
+  verification_status?: VerificationStatus
+  verification_details?: string
+  supporting_sources?: string[]
+  contradicting_sources?: string[]
+}
+
+// Per-segment manipulation technique annotations
+export interface SegmentAnnotation {
+  technique_id: string
+  technique_name: string
+  category: TechniqueCategory
+  span: [number, number]
+  label: string
+  confidence: number
+  explanation: string
+  severity: ManipulationSeverity
+}
+
+// Analyzed segment with claims and annotations
+export interface AnalyzedSegment {
+  segment_index: number
+  start_time: number
+  end_time: number
+  text: string
+  claims: DetectedClaim[]
+  annotations: SegmentAnnotation[]
+}
+
+// Summary of most-used manipulation devices
+export interface DeviceSummary {
+  device_id: string
+  device_name: string
+  category: TechniqueCategory
+  count: number
+  severity: ManipulationSeverity
+  example: string
+}
+
+// Complete manipulation analysis result
+export interface ManipulationAnalysisResult {
+  // Core scores
+  overall_score: number
+  overall_grade: LetterGrade
+
+  // 5 Dimension scores
+  dimension_scores: Record<DimensionType, DimensionScore>
+
+  // Segment-level analysis
+  segments: AnalyzedSegment[]
+
+  // Claim analysis
+  detected_claims: DetectedClaim[]
+  verified_claims: DetectedClaim[]
+  total_claims: number
+  verified_claims_count: number
+
+  // Summaries
+  top_concerns: string[]
+  top_strengths: string[]
+  most_used_devices: DeviceSummary[]
+
+  // Dual interpretations
+  charitable_interpretation: string
+  concerning_interpretation: string
+
+  // Executive summary
+  executive_summary: string
+
+  // Metadata
+  analysis_version: string  // "2.0"
+  analysis_mode: AnalysisMode
+  tokens_used: number
+  analysis_duration_seconds: number
+  transcript_word_count: number
+
+  // Legacy compatibility (optional pillar scores)
+  pillar_scores?: PillarScore[]
+  technique_matches?: TechniqueMatch[]
+  technique_summary?: TechniqueSummary[]
+  quote_matches?: QuoteMatch[]
+}
+
+// Request for manipulation analysis
+export interface ManipulationAnalysisRequest {
+  transcript: string
+  transcript_data?: TranscriptSegment[]
+  analysis_mode: AnalysisMode
+  verify_claims?: boolean
+  include_segments?: boolean
+  video_title?: string
+  video_author?: string
+}
+
+// Progress tracking for deep mode
+export interface AnalysisProgress {
+  phase: 'claim_extraction' | 'manipulation_scan' | 'dimension_scoring' | 'claim_verification' | 'synthesis'
+  phase_name: string
+  progress: number  // 0-100
+  message: string
+}
+
+// Manipulation toolkit types
+export interface DimensionDefinition {
+  id: DimensionType
+  name: string
+  description: string
+  weight: number
+  red_flags: string[]
+  green_flags: string[]
+  scoring_guide: string
+}
+
+export interface ManipulationTechnique {
+  id: string
+  name: string
+  category: TechniqueCategory
+  description: string
+  severity: ManipulationSeverity
+  examples: string[]
+  detection_hints: string[]
+}
+
+export interface ManipulationToolkit {
+  dimensions: Record<DimensionType, DimensionDefinition>
+  language_techniques: Record<string, ManipulationTechnique>
+  reasoning_techniques: Record<string, ManipulationTechnique>
+  propaganda_techniques: Record<string, ManipulationTechnique>
+}

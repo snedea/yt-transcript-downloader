@@ -2,9 +2,10 @@
 Pydantic models for Rhetorical Analysis feature.
 
 These models define the request/response schemas for the rhetorical analysis API.
+Version 2.0 adds optional fields for the enhanced manipulation analysis.
 """
 
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Dict, Any
 from pydantic import BaseModel, Field
 
 
@@ -24,6 +25,21 @@ class AnalysisRequest(BaseModel):
     )
     video_title: Optional[str] = Field(None, description="Title of the video for context")
     video_author: Optional[str] = Field(None, description="Author/speaker for context")
+    video_id: Optional[str] = Field(None, description="Video ID for caching")
+
+    # Version 2.0 options
+    analysis_mode: Optional[Literal["quick", "deep"]] = Field(
+        default="quick",
+        description="Analysis depth: 'quick' (~15s single call) or 'deep' (~60s multi-pass)"
+    )
+    verify_claims: bool = Field(
+        default=True,
+        description="Whether to fact-check verifiable claims via web search (v2.0+)"
+    )
+    include_segments: bool = Field(
+        default=True,
+        description="Whether to include per-segment annotations (v2.0+)"
+    )
 
 
 # Response Models
@@ -148,6 +164,36 @@ class AnalysisResult(BaseModel):
     tokens_used: int = Field(0, description="Number of API tokens used for analysis")
     analysis_duration_seconds: float = Field(0, description="How long the analysis took")
     transcript_word_count: int = Field(0, description="Word count of the analyzed transcript")
+
+    # === Version 2.0 Fields (Optional for backward compatibility) ===
+    analysis_version: str = Field(default="1.0", description="Version of analysis (1.0=rhetorical, 2.0=manipulation)")
+    analysis_mode: Optional[Literal["quick", "deep"]] = Field(
+        None,
+        description="Analysis depth mode (v2.0+)"
+    )
+
+    # 5-Dimension Scores (v2.0+)
+    dimension_scores: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Scores for 5 dimensions: epistemic_integrity, argument_quality, manipulation_risk, rhetorical_craft, fairness_balance"
+    )
+
+    # Segment-Level Analysis (v2.0+)
+    segments: Optional[List[Any]] = Field(
+        None,
+        description="Per-segment analysis with annotations"
+    )
+
+    # Claims Analysis (v2.0+)
+    detected_claims: Optional[List[Any]] = Field(None, description="All detected claims")
+    verified_claims: Optional[List[Any]] = Field(None, description="Fact-checked claims")
+
+    # Enhanced Summary (v2.0+)
+    top_concerns: Optional[List[str]] = Field(None, description="Main manipulation concerns")
+    top_strengths: Optional[List[str]] = Field(None, description="Main positive aspects")
+    most_used_devices: Optional[List[str]] = Field(None, description="Most frequent manipulation devices")
+    charitable_interpretation: Optional[str] = Field(None, description="Best-case reading")
+    concerning_interpretation: Optional[str] = Field(None, description="Most concerning reading")
 
 
 class AnalysisError(BaseModel):

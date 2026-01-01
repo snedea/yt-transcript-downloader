@@ -1,18 +1,37 @@
 """
-Web Search Service for Quote Verification
+Web Search Service for Quote and Claim Verification
 
 Uses self-hosted SearXNG instance at s.llam.ai (Tailscale network)
-for private, secure quote verification searches.
+for private, secure quote and claim verification searches.
+
+Supports:
+- Quote attribution verification (existing)
+- Factual claim verification (new for manipulation analysis)
 """
 
 import logging
 import re
+import asyncio
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass
 
 import httpx
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ClaimVerificationResult:
+    """Result of a factual claim verification."""
+
+    claim_text: str
+    is_verified: bool
+    verification_status: str  # verified, disputed, unverified, unverifiable
+    confidence: float  # 0-1
+    supporting_sources: List[str]
+    contradicting_sources: List[str]
+    verification_details: Optional[str]
+    search_url: Optional[str]
 
 
 @dataclass
@@ -332,6 +351,213 @@ class WebSearchService:
                     return response.status_code == 200
             except Exception:
                 return False
+
+    # =========================================================================
+    # CLAIM VERIFICATION METHODS (for Manipulation Analysis)
+    # =========================================================================
+
+    async def verify_claim(self, claim_text: str) -> ClaimVerificationResult:
+        """
+        Verify a factual claim by searching for evidence.
+
+        Args:
+            claim_text: The claim to verify
+
+        Returns:
+            ClaimVerificationResult with verification status
+        """
+        # Skip very short or vague claims
+        if len(claim_text.strip()) < 20:
+            return ClaimVerificationResult(
+                claim_text=claim_text,
+                is_verified=False,
+                verification_status="unverifiable",
+                confidence=0.0,
+                supporting_sources=[],
+                contradicting_sources=[],
+                verification_details="Claim too short or vague to verify",
+                search_url=None
+            )
+
+        try:
+            # Search for the claim with fact-check context
+            search_results = await self._search_claim(claim_text)
+            return self._parse_claim_results(claim_text, search_results)
+        except Exception as e:
+            logger.error(f"Claim verification failed for '{claim_text[:50]}...': {e}")
+            return ClaimVerificationResult(
+                claim_text=claim_text,
+                is_verified=False,
+                verification_status="unverified",
+                confidence=0.0,
+                supporting_sources=[],
+                contradicting_sources=[],
+                verification_details=f"Search failed: {str(e)}",
+                search_url=None
+            )
+
+    async def verify_claims_batch(
+        self,
+        claims: List[str],
+        rate_limit_delay: float = 0.5
+    ) -> List[ClaimVerificationResult]:
+        """
+        Verify multiple claims with rate limiting.
+
+        Args:
+            claims: List of claim texts to verify
+            rate_limit_delay: Seconds to wait between searches
+
+        Returns:
+            List of ClaimVerificationResult
+        """
+        results = []
+
+        for i, claim in enumerate(claims):
+            result = await self.verify_claim(claim)
+            results.append(result)
+
+            # Rate limiting - don't hammer the search server
+            if i < len(claims) - 1:
+                await asyncio.sleep(rate_limit_delay)
+
+        return results
+
+    async def _search_claim(self, claim_text: str) -> Dict[str, Any]:
+        """
+        Search for evidence about a claim.
+
+        Args:
+            claim_text: The claim to search for
+
+        Returns:
+            Raw search results from SearXNG
+        """
+        # Clean and truncate
+        clean_claim = claim_text.strip()
+        if len(clean_claim) > 200:
+            clean_claim = clean_claim[:200]
+
+        # Build search query for fact-checking
+        search_query = f'"{clean_claim}" fact check OR true OR false OR evidence'
+
+        async with httpx.AsyncClient(timeout=self.SEARCH_TIMEOUT) as client:
+            response = await client.get(
+                f"{self.searxng_url}/search",
+                params={
+                    "q": search_query,
+                    "format": "json",
+                    "categories": "general",
+                    "language": "en",
+                    "safesearch": 0,
+                    "pageno": 1
+                },
+                headers={
+                    "Accept": "application/json"
+                }
+            )
+            response.raise_for_status()
+            return response.json()
+
+    def _parse_claim_results(
+        self,
+        claim_text: str,
+        results: Dict[str, Any]
+    ) -> ClaimVerificationResult:
+        """
+        Parse search results to determine claim verification status.
+
+        Args:
+            claim_text: Original claim
+            results: Raw SearXNG response
+
+        Returns:
+            ClaimVerificationResult
+        """
+        if not results.get("results"):
+            return ClaimVerificationResult(
+                claim_text=claim_text,
+                is_verified=False,
+                verification_status="unverified",
+                confidence=0.3,
+                supporting_sources=[],
+                contradicting_sources=[],
+                verification_details="No search results found",
+                search_url=f"{self.searxng_url}/search?q={claim_text[:50]}"
+            )
+
+        top_results = results["results"][:8]
+        supporting = []
+        contradicting = []
+        neutral = []
+
+        # Patterns for fact-checking sites
+        fact_check_sites = [
+            "snopes.com", "politifact.com", "factcheck.org",
+            "reuters.com/fact-check", "apnews.com/ap-fact-check"
+        ]
+
+        for result in top_results:
+            title = result.get("title", "").lower()
+            content = result.get("content", "").lower()
+            url = result.get("url", "")
+            combined = f"{title} {content}"
+
+            source_info = {
+                "url": url,
+                "title": result.get("title", ""),
+                "snippet": result.get("content", "")[:200]
+            }
+
+            # Check for explicit verdicts
+            if any(word in combined for word in ["true", "correct", "verified", "confirmed", "accurate"]):
+                if not any(word in combined for word in ["false", "incorrect", "misleading", "debunked"]):
+                    supporting.append(source_info)
+            elif any(word in combined for word in ["false", "incorrect", "misleading", "debunked", "myth", "hoax"]):
+                contradicting.append(source_info)
+            else:
+                neutral.append(source_info)
+
+            # Weight fact-checking sites higher
+            for site in fact_check_sites:
+                if site in url.lower():
+                    if source_info in supporting:
+                        supporting.append(source_info)  # Double weight
+                    elif source_info in contradicting:
+                        contradicting.append(source_info)  # Double weight
+
+        # Determine overall status
+        supporting_count = len(supporting)
+        contradicting_count = len(contradicting)
+        total = supporting_count + contradicting_count
+
+        if total == 0:
+            verification_status = "unverified"
+            confidence = 0.3
+            details = "No clear evidence found for or against the claim"
+        elif contradicting_count > supporting_count * 2:
+            verification_status = "disputed"
+            confidence = min(0.9, 0.5 + (contradicting_count - supporting_count) * 0.1)
+            details = f"Found {contradicting_count} contradicting sources vs {supporting_count} supporting"
+        elif supporting_count > contradicting_count * 2:
+            verification_status = "verified"
+            confidence = min(0.9, 0.5 + (supporting_count - contradicting_count) * 0.1)
+            details = f"Found {supporting_count} supporting sources vs {contradicting_count} contradicting"
+        else:
+            verification_status = "unverified"
+            confidence = 0.4
+            details = f"Mixed results: {supporting_count} supporting, {contradicting_count} contradicting"
+
+        return ClaimVerificationResult(
+            claim_text=claim_text,
+            is_verified=verification_status == "verified",
+            verification_status=verification_status,
+            confidence=confidence,
+            supporting_sources=[s["url"] for s in supporting[:3]],
+            contradicting_sources=[s["url"] for s in contradicting[:3]],
+            verification_details=details,
+            search_url=top_results[0].get("url") if top_results else None
+        )
 
 
 # Singleton instance

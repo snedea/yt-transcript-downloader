@@ -4,6 +4,7 @@ Transcript Cache Service
 Provides persistent storage for downloaded transcripts using SQLite.
 """
 
+import os
 import json
 import sqlite3
 import logging
@@ -14,8 +15,11 @@ from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
-# Database path - will be mounted as a Docker volume
-DB_PATH = Path("/app/data/transcripts.db")
+# Database path - use environment variable or local data directory
+# In Docker: /app/data/transcripts.db
+# Local development: ./data/transcripts.db (relative to backend folder)
+_default_db_path = Path(__file__).parent.parent.parent / "data" / "transcripts.db"
+DB_PATH = Path(os.getenv("DB_PATH", str(_default_db_path)))
 
 
 class TranscriptCacheService:

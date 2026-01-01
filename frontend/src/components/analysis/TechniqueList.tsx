@@ -34,9 +34,9 @@ const STRENGTH_ORDER: Record<TechniqueStrength, number> = {
 
 // Strength styles
 const STRENGTH_STYLES: Record<TechniqueStrength, { bg: string; text: string; label: string }> = {
-  strong: { bg: 'bg-green-100', text: 'text-green-700', label: 'Strong' },
-  moderate: { bg: 'bg-yellow-100', text: 'text-yellow-700', label: 'Moderate' },
-  subtle: { bg: 'bg-gray-100', text: 'text-gray-600', label: 'Subtle' }
+  strong: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-400', label: 'Strong' },
+  moderate: { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-700 dark:text-yellow-400', label: 'Moderate' },
+  subtle: { bg: 'bg-gray-100 dark:bg-gray-700', text: 'text-gray-600 dark:text-gray-400', label: 'Subtle' }
 }
 
 export function TechniqueList({ techniques, summary }: TechniqueListProps) {
@@ -113,12 +113,12 @@ export function TechniqueList({ techniques, summary }: TechniqueListProps) {
 
   const SortHeader = ({ field, label }: { field: SortField; label: string }) => (
     <th
-      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+      className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none"
       onClick={() => handleSort(field)}
     >
       <div className="flex items-center gap-1">
         {label}
-        <span className="text-gray-400">
+        <span className="text-gray-400 dark:text-gray-500">
           {sortField === field ? (
             sortDirection === 'asc' ? '↑' : '↓'
           ) : '↕'}
@@ -162,7 +162,7 @@ export function TechniqueList({ techniques, summary }: TechniqueListProps) {
             placeholder="Search techniques, phrases, explanations..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
           />
         </div>
 
@@ -170,7 +170,7 @@ export function TechniqueList({ techniques, summary }: TechniqueListProps) {
         <select
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
         >
           {categories.map(cat => (
             <option key={cat} value={cat}>
@@ -183,7 +183,7 @@ export function TechniqueList({ techniques, summary }: TechniqueListProps) {
         <select
           value={strengthFilter}
           onChange={(e) => setStrengthFilter(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
         >
           <option value="all">All Strengths</option>
           <option value="strong">Strong</option>
@@ -192,37 +192,37 @@ export function TechniqueList({ techniques, summary }: TechniqueListProps) {
         </select>
 
         {/* Results count */}
-        <span className="text-sm text-gray-500">
+        <span className="text-sm text-gray-500 dark:text-gray-400">
           {filteredTechniques.length} of {techniques.length} techniques
         </span>
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto border rounded-lg">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+      <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg">
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead className="bg-gray-50 dark:bg-gray-900">
             <tr>
               <SortHeader field="technique_name" label="Technique" />
               <SortHeader field="category" label="Category" />
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Phrase
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Analysis
               </th>
               <SortHeader field="strength" label="Strength" />
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {filteredTechniques.map((tech, idx) => {
               const strengthStyle = STRENGTH_STYLES[tech.strength]
               const categoryColor = CATEGORY_COLORS[tech.category] || CATEGORY_COLORS.other
 
               return (
-                <tr key={`${tech.technique_id}-${idx}`} className="hover:bg-gray-50">
+                <tr key={`${tech.technique_id}-${idx}`} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                   {/* Technique Name */}
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="font-medium text-gray-900">
+                    <span className="font-medium text-gray-900 dark:text-gray-100">
                       {tech.technique_name}
                     </span>
                   </td>
@@ -246,11 +246,11 @@ export function TechniqueList({ techniques, summary }: TechniqueListProps) {
 
                   {/* Phrase */}
                   <td className="px-4 py-3">
-                    <p className="text-sm text-gray-700 italic max-w-xs">
+                    <p className="text-sm text-gray-700 dark:text-gray-300 italic max-w-xs">
                       &ldquo;{tech.phrase}&rdquo;
                     </p>
                     {tech.start_time !== undefined && (
-                      <span className="text-xs text-gray-400">
+                      <span className="text-xs text-gray-400 dark:text-gray-500">
                         @ {formatTimestamp(tech.start_time)}
                       </span>
                     )}
@@ -258,7 +258,7 @@ export function TechniqueList({ techniques, summary }: TechniqueListProps) {
 
                   {/* Analysis/Explanation */}
                   <td className="px-4 py-3">
-                    <p className="text-sm text-gray-600 max-w-md">
+                    <p className="text-sm text-gray-600 dark:text-gray-400 max-w-md">
                       {tech.explanation}
                     </p>
                   </td>
@@ -276,7 +276,7 @@ export function TechniqueList({ techniques, summary }: TechniqueListProps) {
         </table>
 
         {filteredTechniques.length === 0 && (
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
             No techniques match your filters
           </div>
         )}
@@ -301,17 +301,17 @@ export function TechniqueCard({ technique }: TechniqueCardProps) {
 
   return (
     <div
-      className="p-4 rounded-lg border-l-4 bg-white shadow-sm"
+      className="p-4 rounded-lg border-l-4 bg-white dark:bg-gray-800 shadow-sm"
       style={{ borderLeftColor: color }}
     >
       <div className="flex items-center justify-between mb-2">
-        <h4 className="font-semibold text-gray-800">{technique.technique_name}</h4>
+        <h4 className="font-semibold text-gray-800 dark:text-gray-200">{technique.technique_name}</h4>
         <span className={`text-xs px-2 py-0.5 rounded-full ${strengthStyle.bg} ${strengthStyle.text}`}>
           {strengthStyle.label}
         </span>
       </div>
-      <p className="text-sm text-gray-600 italic mb-2">&ldquo;{technique.phrase}&rdquo;</p>
-      <p className="text-sm text-gray-700">{technique.explanation}</p>
+      <p className="text-sm text-gray-600 dark:text-gray-400 italic mb-2">&ldquo;{technique.phrase}&rdquo;</p>
+      <p className="text-sm text-gray-700 dark:text-gray-300">{technique.explanation}</p>
     </div>
   )
 }
