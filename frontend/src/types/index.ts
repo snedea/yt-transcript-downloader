@@ -175,7 +175,8 @@ export interface DimensionScore {
   confidence: number
   explanation: string
   red_flags: string[]
-  green_flags: string[]
+  strengths: string[]  // Backend sends 'strengths'
+  green_flags?: string[]  // Alias for strengths (optional)
   key_examples: string[]
 }
 
@@ -221,7 +222,7 @@ export interface DeviceSummary {
   category: TechniqueCategory
   count: number
   severity: ManipulationSeverity
-  example: string
+  examples: string[]  // Example occurrences from transcript
 }
 
 // Complete manipulation analysis result

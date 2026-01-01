@@ -323,11 +323,13 @@ function ClaimCard({ claim, isExpanded, onToggle }: ClaimCardProps) {
             </div>
           )}
 
-          {/* Position in transcript */}
-          <div className="text-xs text-gray-400 dark:text-gray-500">
-            Segment #{claim.segment_index + 1}
-            {claim.span && ` • Characters ${claim.span[0]}-${claim.span[1]}`}
-          </div>
+          {/* Position in transcript - only show if meaningful data exists */}
+          {(claim.segment_index > 0 || (claim.span && (claim.span[0] > 0 || claim.span[1] > 0))) && (
+            <div className="text-xs text-gray-400 dark:text-gray-500">
+              Segment #{claim.segment_index + 1}
+              {claim.span && claim.span[1] > 0 && ` • Characters ${claim.span[0]}-${claim.span[1]}`}
+            </div>
+          )}
         </div>
       )}
     </div>

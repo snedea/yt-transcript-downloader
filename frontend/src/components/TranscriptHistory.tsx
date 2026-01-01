@@ -93,17 +93,12 @@ export default function TranscriptHistory({ onSelect, refreshTrigger }: Transcri
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
-      {/* Header with title and pagination */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center gap-2">
-          <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <span className="font-medium text-gray-700 dark:text-gray-300">
-            Recent Transcripts ({history.length})
-          </span>
-        </div>
+    <div className="overflow-hidden">
+      {/* Header with count and pagination */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+        <span className="text-sm text-gray-500 dark:text-gray-400">
+          {history.length} saved
+        </span>
 
         {/* Pagination Controls */}
         {showPagination && (

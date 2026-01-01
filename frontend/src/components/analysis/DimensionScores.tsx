@@ -169,7 +169,7 @@ function DimensionCard({ dimensionId, score, meta, isExpanded, onToggle }: Dimen
           {/* Red/Green flags */}
           <div className="grid grid-cols-2 gap-4">
             {/* Concerns */}
-            {score.red_flags.length > 0 && (
+            {(score.red_flags?.length ?? 0) > 0 && (
               <div>
                 <h5 className="text-xs font-medium text-red-600 dark:text-red-400 mb-2 flex items-center gap-1">
                   <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
@@ -178,7 +178,7 @@ function DimensionCard({ dimensionId, score, meta, isExpanded, onToggle }: Dimen
                   Concerns
                 </h5>
                 <ul className="space-y-1">
-                  {score.red_flags.map((flag, idx) => (
+                  {score.red_flags?.map((flag, idx) => (
                     <li key={idx} className="text-xs text-gray-600 dark:text-gray-400 flex items-start gap-1.5">
                       <span className="text-red-400 mt-0.5">•</span>
                       {flag}
@@ -188,8 +188,8 @@ function DimensionCard({ dimensionId, score, meta, isExpanded, onToggle }: Dimen
               </div>
             )}
 
-            {/* Strengths */}
-            {score.green_flags.length > 0 && (
+            {/* Strengths - backend sends 'strengths', fallback to 'green_flags' */}
+            {((score.strengths?.length ?? 0) > 0 || (score.green_flags?.length ?? 0) > 0) && (
               <div>
                 <h5 className="text-xs font-medium text-green-600 dark:text-green-400 mb-2 flex items-center gap-1">
                   <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
@@ -198,7 +198,7 @@ function DimensionCard({ dimensionId, score, meta, isExpanded, onToggle }: Dimen
                   Strengths
                 </h5>
                 <ul className="space-y-1">
-                  {score.green_flags.map((flag, idx) => (
+                  {(score.strengths || score.green_flags || []).map((flag, idx) => (
                     <li key={idx} className="text-xs text-gray-600 dark:text-gray-400 flex items-start gap-1.5">
                       <span className="text-green-400 mt-0.5">•</span>
                       {flag}
@@ -210,13 +210,13 @@ function DimensionCard({ dimensionId, score, meta, isExpanded, onToggle }: Dimen
           </div>
 
           {/* Key examples */}
-          {score.key_examples.length > 0 && (
+          {(score.key_examples?.length ?? 0) > 0 && (
             <div>
               <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
                 Key Examples
               </h5>
               <div className="space-y-2">
-                {score.key_examples.slice(0, 3).map((example, idx) => (
+                {(score.key_examples || []).slice(0, 3).map((example, idx) => (
                   <p key={idx} className="text-xs text-gray-600 dark:text-gray-400 italic bg-gray-50 dark:bg-gray-700 p-2 rounded">
                     &ldquo;{example}&rdquo;
                   </p>
@@ -227,7 +227,7 @@ function DimensionCard({ dimensionId, score, meta, isExpanded, onToggle }: Dimen
 
           {/* Confidence */}
           <div className="text-xs text-gray-400 dark:text-gray-500">
-            Analysis confidence: {Math.round(score.confidence * 100)}%
+            Analysis confidence: {Math.round((score.confidence ?? 0.8) * 100)}%
           </div>
         </div>
       )}

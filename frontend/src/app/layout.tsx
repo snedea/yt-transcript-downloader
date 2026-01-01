@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'YouTube Transcript Downloader',
-  description: 'Download and clean YouTube video transcripts with AI',
+  title: 'YouTube Content Analyzer',
+  description: 'Download transcripts, analyze rhetoric, and detect manipulation in video content',
 }
 
 export default function RootLayout({

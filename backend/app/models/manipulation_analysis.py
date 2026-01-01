@@ -176,7 +176,10 @@ class ManipulationAnalysisResult(BaseModel):
         default_factory=list,
         description="Summary of all devices/techniques found"
     )
-    most_used_devices: List[str] = Field(default_factory=list)
+    most_used_devices: List[DeviceSummary] = Field(
+        default_factory=list,
+        description="Top 5 most frequently used manipulation devices"
+    )
 
     # === Summary ===
     executive_summary: str = Field(default="", description="2-3 paragraph overview")

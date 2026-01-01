@@ -333,9 +333,8 @@ Return your analysis as JSON matching the required schema."""
             # Parse techniques into device summary
             device_summary = self._parse_techniques_to_summary(analysis_data.get("detected_techniques", []))
 
-            # Get most used devices
+            # Get most used devices (top 5)
             most_used = sorted(device_summary, key=lambda x: x.count, reverse=True)[:5]
-            most_used_names = [d.device_name for d in most_used]
 
             # Verify claims if requested
             verified_claims = []
@@ -356,7 +355,7 @@ Return your analysis as JSON matching the required schema."""
                 claims_verified=len(verified_claims),
                 claims_disputed=len([c for c in verified_claims if c.verification_status == VerificationStatus.DISPUTED]),
                 device_summary=device_summary,
-                most_used_devices=most_used_names,
+                most_used_devices=most_used,
                 executive_summary=analysis_data.get("executive_summary", ""),
                 top_concerns=analysis_data.get("top_concerns", []),
                 top_strengths=analysis_data.get("top_strengths", []),
@@ -446,7 +445,6 @@ Return your analysis as JSON matching the required schema."""
         # Build device summary from annotations
         device_summary = self._build_device_summary(annotations)
         most_used = sorted(device_summary, key=lambda x: x.count, reverse=True)[:5]
-        most_used_names = [d.device_name for d in most_used]
 
         return ManipulationAnalysisResult(
             analysis_version="2.0",
@@ -462,7 +460,7 @@ Return your analysis as JSON matching the required schema."""
             claims_verified=len(verified_claims),
             claims_disputed=len([c for c in verified_claims if c.verification_status == VerificationStatus.DISPUTED]),
             device_summary=device_summary,
-            most_used_devices=most_used_names,
+            most_used_devices=most_used,
             executive_summary=summary_data.get("executive_summary", ""),
             top_concerns=summary_data.get("top_concerns", []),
             top_strengths=summary_data.get("top_strengths", []),

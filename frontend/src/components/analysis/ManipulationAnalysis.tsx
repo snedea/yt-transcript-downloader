@@ -376,10 +376,14 @@ function DevicesTab({ result }: { result: ManipulationAnalysisResult }) {
                 <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 capitalize">
                   {device.category}
                 </span>
-                {device.example && (
-                  <p className="text-sm text-gray-600 dark:text-gray-400 italic mt-2">
-                    &ldquo;{device.example}&rdquo;
-                  </p>
+                {device.examples && device.examples.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {device.examples.slice(0, 2).map((ex, exIdx) => (
+                      <p key={exIdx} className="text-sm text-gray-600 dark:text-gray-400 italic">
+                        &ldquo;{ex}&rdquo;
+                      </p>
+                    ))}
+                  </div>
                 )}
               </div>
             ))}
