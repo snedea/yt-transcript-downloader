@@ -22,6 +22,11 @@ class SaveAnalysisRequest(BaseModel):
     analysis_result: Dict[str, Any]
 
 
+class SaveSummaryRequest(BaseModel):
+    video_id: str
+    summary_result: Dict[str, Any]
+
+
 @router.get("/transcript/{video_id}")
 async def get_cached_transcript(video_id: str):
     """
@@ -51,7 +56,10 @@ async def get_cached_transcript(video_id: str):
         "access_count": result["access_count"],
         "analysis_result": result.get("analysis_result"),
         "analysis_date": result.get("analysis_date"),
-        "has_analysis": result.get("analysis_result") is not None
+        "has_analysis": result.get("analysis_result") is not None,
+        "summary_result": result.get("summary_result"),
+        "summary_date": result.get("summary_date"),
+        "has_summary": result.get("summary_result") is not None
     }
 
 
@@ -171,5 +179,43 @@ async def get_cached_analysis(video_id: str):
         "video_id": video_id,
         "analysis": result["analysis"],
         "analysis_date": result["analysis_date"],
+        "cached": True
+    }
+
+
+@router.post("/summary")
+async def save_summary(request: SaveSummaryRequest):
+    """
+    Save content summary results for a video.
+
+    The video must already exist in the cache (transcript must be saved first).
+    """
+    cache = get_cache_service()
+    success = cache.save_summary(request.video_id, request.summary_result)
+
+    if not success:
+        raise HTTPException(
+            status_code=404,
+            detail="Transcript not found in cache. Save the transcript first."
+        )
+
+    return {"saved": True, "video_id": request.video_id}
+
+
+@router.get("/summary/{video_id}")
+async def get_cached_summary(video_id: str):
+    """
+    Get cached content summary for a video.
+    """
+    cache = get_cache_service()
+    result = cache.get_summary(video_id)
+
+    if not result:
+        raise HTTPException(status_code=404, detail="Summary not found in cache")
+
+    return {
+        "video_id": video_id,
+        "summary": result["summary"],
+        "summary_date": result["summary_date"],
         "cached": True
     }

@@ -68,6 +68,16 @@ class TranscriptCacheService:
             except sqlite3.OperationalError:
                 pass  # Column already exists
 
+            # Add summary columns if they don't exist (for content summary feature)
+            try:
+                conn.execute("ALTER TABLE transcripts ADD COLUMN summary_result TEXT")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+            try:
+                conn.execute("ALTER TABLE transcripts ADD COLUMN summary_date TEXT")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+
             # Create index for faster lookups
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_last_accessed
@@ -129,6 +139,13 @@ class TranscriptCacheService:
                         result['analysis_result'] = json.loads(result['analysis_result'])
                     except json.JSONDecodeError:
                         result['analysis_result'] = None
+
+                # Parse summary_result JSON if present
+                if result.get('summary_result'):
+                    try:
+                        result['summary_result'] = json.loads(result['summary_result'])
+                    except json.JSONDecodeError:
+                        result['summary_result'] = None
 
                 # Convert is_cleaned to bool
                 result['is_cleaned'] = bool(result.get('is_cleaned', 0))
@@ -225,7 +242,8 @@ class TranscriptCacheService:
                 """
                 SELECT video_id, video_title, author, is_cleaned,
                        created_at, last_accessed, access_count,
-                       CASE WHEN analysis_result IS NOT NULL THEN 1 ELSE 0 END as has_analysis
+                       CASE WHEN analysis_result IS NOT NULL THEN 1 ELSE 0 END as has_analysis,
+                       CASE WHEN summary_result IS NOT NULL THEN 1 ELSE 0 END as has_summary
                 FROM transcripts
                 ORDER BY last_accessed DESC
                 LIMIT ? OFFSET ?
@@ -238,6 +256,7 @@ class TranscriptCacheService:
                 item = dict(row)
                 item['is_cleaned'] = bool(item.get('is_cleaned', 0))
                 item['has_analysis'] = bool(item.get('has_analysis', 0))
+                item['has_summary'] = bool(item.get('has_summary', 0))
                 items.append(item)
 
             return items
@@ -365,6 +384,77 @@ class TranscriptCacheService:
         with self._get_connection() as conn:
             cursor = conn.execute(
                 "SELECT 1 FROM transcripts WHERE video_id = ? AND analysis_result IS NOT NULL",
+                (video_id,)
+            )
+            return cursor.fetchone() is not None
+
+    def save_summary(self, video_id: str, summary_result: Dict[str, Any]) -> bool:
+        """
+        Save content summary results for a video.
+
+        Args:
+            video_id: YouTube video ID
+            summary_result: The complete summary result dictionary
+
+        Returns:
+            True if saved successfully, False otherwise
+        """
+        now = datetime.utcnow().isoformat()
+        summary_json = json.dumps(summary_result)
+
+        try:
+            with self._get_connection() as conn:
+                conn.execute(
+                    """
+                    UPDATE transcripts
+                    SET summary_result = ?, summary_date = ?
+                    WHERE video_id = ?
+                    """,
+                    (summary_json, now, video_id)
+                )
+                conn.commit()
+
+                if conn.total_changes > 0:
+                    logger.info(f"Saved summary for video {video_id}")
+                    return True
+                else:
+                    logger.warning(f"No transcript found to save summary for video {video_id}")
+                    return False
+
+        except Exception as e:
+            logger.error(f"Failed to save summary: {e}")
+            return False
+
+    def get_summary(self, video_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get cached summary results for a video.
+
+        Returns:
+            Summary result dict or None if not found
+        """
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT summary_result, summary_date FROM transcripts WHERE video_id = ?",
+                (video_id,)
+            )
+            row = cursor.fetchone()
+
+            if row and row['summary_result']:
+                try:
+                    return {
+                        'summary': json.loads(row['summary_result']),
+                        'summary_date': row['summary_date']
+                    }
+                except json.JSONDecodeError:
+                    return None
+
+            return None
+
+    def has_summary(self, video_id: str) -> bool:
+        """Check if a video has cached summary."""
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT 1 FROM transcripts WHERE video_id = ? AND summary_result IS NOT NULL",
                 (video_id,)
             )
             return cursor.fetchone() is not None

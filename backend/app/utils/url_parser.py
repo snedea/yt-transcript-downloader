@@ -6,19 +6,22 @@ from typing import Dict, Literal
 def extract_video_id(url: str) -> str:
     """
     Extract video ID from various YouTube URL formats
-    
+
     Supported formats:
     - https://www.youtube.com/watch?v=VIDEO_ID
     - https://youtube.com/watch?v=VIDEO_ID
     - https://youtu.be/VIDEO_ID
     - https://m.youtube.com/watch?v=VIDEO_ID
-    
+    - https://www.youtube.com/live/VIDEO_ID
+    - https://www.youtube.com/shorts/VIDEO_ID
+    - https://www.youtube.com/embed/VIDEO_ID
+
     Args:
         url: YouTube video URL
-        
+
     Returns:
         Video ID string
-        
+
     Raises:
         ValueError: If URL format is invalid or video ID cannot be extracted
     """
@@ -26,12 +29,18 @@ def extract_video_id(url: str) -> str:
     watch_pattern = r'(?:youtube\.com|m\.youtube\.com)/watch\?v=([a-zA-Z0-9_-]{11})'
     # Pattern for youtu.be/ID format
     short_pattern = r'youtu\.be/([a-zA-Z0-9_-]{11})'
-    
-    match = re.search(watch_pattern, url) or re.search(short_pattern, url)
-    
+    # Pattern for youtube.com/live/ID, /shorts/ID, /embed/ID formats
+    path_pattern = r'youtube\.com/(?:live|shorts|embed)/([a-zA-Z0-9_-]{11})'
+
+    match = (
+        re.search(watch_pattern, url) or
+        re.search(short_pattern, url) or
+        re.search(path_pattern, url)
+    )
+
     if match:
         return match.group(1)
-    
+
     raise ValueError(f"Could not extract video ID from URL: {url}")
 
 

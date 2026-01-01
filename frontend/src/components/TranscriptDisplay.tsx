@@ -4,12 +4,14 @@ import React, { useState, useEffect } from 'react'
 import { downloadTextFile, copyToClipboard, generateFilename, formatTranscriptWithTimestamps } from '@/utils/download'
 import { useRhetoricalAnalysis } from '@/hooks/useRhetoricalAnalysis'
 import { useManipulationAnalysis } from '@/hooks/useManipulationAnalysis'
+import { useContentSummary } from '@/hooks/useContentSummary'
 import { RhetoricalAnalysis } from '@/components/analysis/RhetoricalAnalysis'
 import { ManipulationAnalysis } from '@/components/analysis/ManipulationAnalysis'
+import { ContentSummary } from '@/components/analysis/ContentSummary'
 import { AnalysisModeSelector, AnalysisProgressBar, CompactModeSelector } from '@/components/analysis/AnalysisModeSelector'
 import type { TranscriptSegment, AnalysisMode } from '@/types'
 
-type AnalysisType = 'rhetorical' | 'manipulation'
+type AnalysisType = 'rhetorical' | 'manipulation' | 'summary'
 
 interface TranscriptDisplayProps {
   transcript: string
@@ -22,6 +24,8 @@ interface TranscriptDisplayProps {
   cached?: boolean
   cachedAnalysis?: import('@/types').AnalysisResult
   analysisDate?: string
+  cachedSummary?: import('@/types').ContentSummaryResult
+  summaryDate?: string
 }
 
 export default function TranscriptDisplay({
@@ -34,13 +38,15 @@ export default function TranscriptDisplay({
   transcriptData,
   cached,
   cachedAnalysis,
-  analysisDate
+  analysisDate,
+  cachedSummary,
+  summaryDate
 }: TranscriptDisplayProps) {
   const [copied, setCopied] = useState(false)
-  const [showAnalysis, setShowAnalysis] = useState(cachedAnalysis ? true : false)
+  const [showAnalysis, setShowAnalysis] = useState(cachedAnalysis || cachedSummary ? true : false)
   const [verifyQuotes, setVerifyQuotes] = useState(true)
-  const [analysisType, setAnalysisType] = useState<AnalysisType>('manipulation')
-  const [showModeSelector, setShowModeSelector] = useState(true)  // Show mode selector by default for manipulation
+  const [analysisType, setAnalysisType] = useState<AnalysisType>('summary')
+  const [showModeSelector, setShowModeSelector] = useState(false)  // Show mode selector for manipulation only
 
   // Rhetorical analysis hook (v1.0)
   const {
@@ -67,15 +73,45 @@ export default function TranscriptDisplay({
     reset: resetManipulation
   } = useManipulationAnalysis()
 
-  // Combined state
-  const analyzing = analysisType === 'rhetorical' ? rhetoricalLoading : manipulationLoading
-  const analysisError = analysisType === 'rhetorical' ? rhetoricalError : manipulationError
-  const analysisResult = analysisType === 'rhetorical' ? rhetoricalResult : manipulationResult
-  const isAnalysisCached = analysisType === 'rhetorical' ? isRhetoricalCached : isManipulationCached
+  // Content summary hook (v3.0)
+  const {
+    loading: summaryLoading,
+    error: summaryError,
+    result: summaryResult,
+    isCached: isSummaryCached,
+    analyzeTranscript: analyzeSummary,
+    setFromCache: setSummaryFromCache,
+    reset: resetSummary
+  } = useContentSummary()
 
-  // Load cached analysis on mount if available
+  // Combined state
+  const analyzing = analysisType === 'rhetorical'
+    ? rhetoricalLoading
+    : analysisType === 'manipulation'
+    ? manipulationLoading
+    : summaryLoading
+  const analysisError = analysisType === 'rhetorical'
+    ? rhetoricalError
+    : analysisType === 'manipulation'
+    ? manipulationError
+    : summaryError
+
+  // Reset analysis state when video changes
   useEffect(() => {
-    if (cachedAnalysis && !rhetoricalResult && !manipulationResult) {
+    resetRhetorical()
+    resetManipulation()
+    resetSummary()
+    setShowAnalysis(false)
+  }, [videoId, resetRhetorical, resetManipulation, resetSummary])
+
+  // Load cached analysis after reset
+  useEffect(() => {
+    // Load cached summary if available (prioritize summary)
+    if (cachedSummary) {
+      setAnalysisType('summary')
+      setSummaryFromCache(cachedSummary)
+      setShowAnalysis(true)
+    } else if (cachedAnalysis) {
       // Check if it's a v2.0 analysis (has dimension_scores)
       if ('dimension_scores' in cachedAnalysis) {
         setAnalysisType('manipulation')
@@ -84,8 +120,9 @@ export default function TranscriptDisplay({
         setAnalysisType('rhetorical')
         setRhetoricalFromCache(cachedAnalysis)
       }
+      setShowAnalysis(true)
     }
-  }, [cachedAnalysis, rhetoricalResult, manipulationResult, setRhetoricalFromCache, setManipulationFromCache])
+  }, [videoId, cachedAnalysis, cachedSummary, setRhetoricalFromCache, setManipulationFromCache, setSummaryFromCache])
 
   const handleCopy = async () => {
     const success = await copyToClipboard(transcript)
@@ -120,13 +157,22 @@ export default function TranscriptDisplay({
         videoAuthor: author,
         videoId
       })
-    } else {
+    } else if (analysisType === 'manipulation') {
       await analyzeManipulation(transcript, transcriptData, {
         mode: analysisMode,
         verifyClaims: analysisMode === 'deep',
         videoTitle,
         videoAuthor: author,
         videoId
+      })
+    } else {
+      // Content Summary
+      const videoUrl = videoId ? `https://youtube.com/watch?v=${videoId}` : undefined
+      await analyzeSummary(transcript, transcriptData, {
+        videoTitle,
+        videoAuthor: author,
+        videoId,
+        videoUrl
       })
     }
   }
@@ -135,6 +181,7 @@ export default function TranscriptDisplay({
     setShowAnalysis(false)
     resetRhetorical()
     resetManipulation()
+    resetSummary()
   }
 
   const wordCount = transcript.split(/\s+/).length
@@ -162,7 +209,7 @@ export default function TranscriptDisplay({
               Author: {author}
             </p>
           )}
-          {tokensUsed && (
+          {tokensUsed !== undefined && tokensUsed > 0 && (
             <p className="text-sm text-gray-600 dark:text-gray-400">
               Tokens used: {tokensUsed}
             </p>
@@ -209,6 +256,16 @@ export default function TranscriptDisplay({
             <div className="flex items-center gap-4 mb-4">
               <div className="flex rounded-lg bg-gray-100 dark:bg-gray-700 p-1">
                 <button
+                  onClick={() => { setAnalysisType('summary'); setShowModeSelector(false) }}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                    analysisType === 'summary'
+                      ? 'bg-white dark:bg-gray-600 text-emerald-600 dark:text-emerald-400 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  }`}
+                >
+                  📋 Summary
+                </button>
+                <button
                   onClick={() => { setAnalysisType('manipulation'); setShowModeSelector(true) }}
                   className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
                     analysisType === 'manipulation'
@@ -226,11 +283,11 @@ export default function TranscriptDisplay({
                       : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                   }`}
                 >
-                  🎭 Rhetorical Analysis
+                  🎭 Rhetoric
                 </button>
               </div>
               <span className="text-xs text-gray-500 dark:text-gray-500">
-                {analysisType === 'manipulation' ? 'v2.0 - 5 dimensions' : 'v1.0 - 4 pillars'}
+                {analysisType === 'summary' ? 'Key concepts & export' : analysisType === 'manipulation' ? 'v2.0 - 5 dimensions' : 'v1.0 - 4 pillars'}
               </span>
             </div>
 
@@ -267,7 +324,11 @@ export default function TranscriptDisplay({
               <button
                 onClick={handleAnalyze}
                 disabled={analyzing}
-                className="flex-1 sm:flex-none bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium py-2.5 px-6 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className={`flex-1 sm:flex-none font-medium py-2.5 px-6 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+                  analysisType === 'summary'
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white'
+                    : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white'
+                }`}
               >
                 {analyzing ? (
                   <>
@@ -287,15 +348,19 @@ export default function TranscriptDisplay({
                         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                       />
                     </svg>
-                    {analysisType === 'manipulation'
+                    {analysisType === 'summary'
+                      ? 'Extracting Key Concepts...'
+                      : analysisType === 'manipulation'
                       ? `Running ${analysisMode === 'deep' ? 'Deep' : 'Quick'} Analysis...`
                       : 'Analyzing Rhetoric...'
                     }
                   </>
                 ) : (
                   <>
-                    <span>{analysisType === 'manipulation' ? '🔬' : '🎭'}</span>
-                    {analysisType === 'manipulation'
+                    <span>{analysisType === 'summary' ? '📋' : analysisType === 'manipulation' ? '🔬' : '🎭'}</span>
+                    {analysisType === 'summary'
+                      ? 'Get Summary'
+                      : analysisType === 'manipulation'
                       ? `${analysisMode === 'deep' ? 'Deep' : 'Quick'} Analysis`
                       : 'Analyze Rhetoric'
                     }
@@ -314,7 +379,9 @@ export default function TranscriptDisplay({
             </div>
 
             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-              {analysisType === 'manipulation'
+              {analysisType === 'summary'
+                ? 'Extract key concepts, TLDR, technical details, and action items. Export to Markdown, TXT, or JSON for Obsidian notes.'
+                : analysisType === 'manipulation'
                 ? `Detect manipulation tactics and score content trustworthiness across 5 dimensions. Higher scores = more trustworthy. ${analysisMode === 'deep' ? 'Deep mode verifies factual claims.' : ''}`
                 : 'Analyze the transcript for rhetorical techniques using AI. Identifies persuasion strategies, scores the four pillars (Logos, Pathos, Ethos, Kairos), and detects quotes/attributions.'
               }
@@ -348,11 +415,25 @@ export default function TranscriptDisplay({
 
       {/* Analysis Loading State */}
       {analyzing && showAnalysis && (
-        <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-8">
+        <div className={`rounded-lg p-8 border ${
+          analysisType === 'summary'
+            ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'
+            : 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800'
+        }`}>
           <div className="flex flex-col items-center justify-center text-center">
-            <div className="w-16 h-16 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-4" />
-            <h4 className="font-medium text-indigo-800 dark:text-indigo-200 mb-2">
-              {analysisType === 'manipulation'
+            <div className={`w-16 h-16 border-4 rounded-full animate-spin mb-4 ${
+              analysisType === 'summary'
+                ? 'border-emerald-200 border-t-emerald-600'
+                : 'border-indigo-200 border-t-indigo-600'
+            }`} />
+            <h4 className={`font-medium mb-2 ${
+              analysisType === 'summary'
+                ? 'text-emerald-800 dark:text-emerald-200'
+                : 'text-indigo-800 dark:text-indigo-200'
+            }`}>
+              {analysisType === 'summary'
+                ? 'Extracting Key Concepts...'
+                : analysisType === 'manipulation'
                 ? `Running ${analysisMode === 'deep' ? 'Deep' : 'Quick'} Analysis...`
                 : 'Analyzing Rhetorical Techniques...'
               }
@@ -365,8 +446,14 @@ export default function TranscriptDisplay({
               </div>
             )}
 
-            <p className="text-sm text-indigo-600 dark:text-indigo-400 max-w-md">
-              {analysisType === 'manipulation'
+            <p className={`text-sm max-w-md ${
+              analysisType === 'summary'
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : 'text-indigo-600 dark:text-indigo-400'
+            }`}>
+              {analysisType === 'summary'
+                ? 'Detecting content type, extracting key concepts, identifying technical details, and generating action items. This takes about 10 seconds.'
+                : analysisType === 'manipulation'
                 ? analysisMode === 'deep'
                   ? 'Running multi-pass analysis: extracting claims, scanning for manipulation techniques, scoring dimensions, and verifying claims. This takes about 60 seconds.'
                   : 'Analyzing content across 5 dimensions: Epistemic Integrity, Argument Quality, Manipulation Risk, Rhetorical Craft, and Fairness. This takes about 15 seconds.'
@@ -378,7 +465,7 @@ export default function TranscriptDisplay({
       )}
 
       {/* Analysis Results */}
-      {showAnalysis && (rhetoricalResult || manipulationResult) && (
+      {showAnalysis && (rhetoricalResult || manipulationResult || summaryResult) && (
         <div className="relative">
           <button
             onClick={handleCloseAnalysis}
@@ -391,7 +478,16 @@ export default function TranscriptDisplay({
           </button>
 
           {/* Render appropriate analysis component */}
-          {manipulationResult ? (
+          {summaryResult ? (
+            <ContentSummary
+              result={summaryResult}
+              videoTitle={videoTitle}
+              videoAuthor={author}
+              videoId={videoId}
+              videoUrl={videoId ? `https://youtube.com/watch?v=${videoId}` : undefined}
+              isCached={isSummaryCached}
+            />
+          ) : manipulationResult ? (
             <ManipulationAnalysis
               result={manipulationResult}
               videoTitle={videoTitle}

@@ -1,10 +1,12 @@
 import { useState, useCallback } from 'react'
 import { transcriptApi, cacheApi } from '@/services/api'
-import type { TranscriptResponse, AnalysisResult } from '@/types'
+import type { TranscriptResponse, AnalysisResult, ContentSummaryResult } from '@/types'
 
 interface TranscriptData extends TranscriptResponse {
   cachedAnalysis?: AnalysisResult
   analysisDate?: string
+  cachedSummary?: ContentSummaryResult
+  summaryDate?: string
 }
 
 export const useTranscript = () => {
@@ -51,7 +53,9 @@ export const useTranscript = () => {
           transcript_data: cached.transcript_data,
           cached: true,
           cachedAnalysis: cached.analysis_result,
-          analysisDate: cached.analysis_date
+          analysisDate: cached.analysis_date,
+          cachedSummary: cached.summary_result,
+          summaryDate: cached.summary_date
         })
       } else {
         setData(null)

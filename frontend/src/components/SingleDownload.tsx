@@ -96,6 +96,8 @@ export default function SingleDownload({ selectedVideoId, onTranscriptFetched }:
           cached={data.cached}
           cachedAnalysis={data.cachedAnalysis}
           analysisDate={data.analysisDate}
+          cachedSummary={data.cachedSummary}
+          summaryDate={data.summaryDate}
         />
       )}
     </div>

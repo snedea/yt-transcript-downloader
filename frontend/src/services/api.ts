@@ -15,7 +15,8 @@ import type {
   AnalysisMode,
   ManipulationToolkit,
   DimensionDefinition,
-  ManipulationTechnique
+  ManipulationTechnique,
+  ContentSummaryResult
 } from '@/types'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
@@ -58,6 +59,7 @@ export interface CacheHistoryItem {
   author: string | null
   is_cleaned: boolean
   has_analysis: boolean
+  has_summary: boolean
   created_at: string
   last_accessed: string
   access_count: number
@@ -76,6 +78,9 @@ export interface CachedTranscript extends TranscriptResponse {
   analysis_result?: AnalysisResult
   analysis_date?: string
   has_analysis: boolean
+  summary_result?: ContentSummaryResult
+  summary_date?: string
+  has_summary: boolean
 }
 
 export const cacheApi = {
@@ -145,6 +150,31 @@ export const cacheApi = {
   getAnalysis: async (videoId: string): Promise<{ analysis: AnalysisResult; analysis_date: string } | null> => {
     try {
       const response = await api.get(`/api/cache/analysis/${videoId}`)
+      return response.data
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return null
+      }
+      throw error
+    }
+  },
+
+  /**
+   * Save content summary results
+   */
+  saveSummary: async (videoId: string, summaryResult: ContentSummaryResult): Promise<void> => {
+    await api.post('/api/cache/summary', {
+      video_id: videoId,
+      summary_result: summaryResult
+    })
+  },
+
+  /**
+   * Get cached summary for a video
+   */
+  getSummary: async (videoId: string): Promise<{ summary: ContentSummaryResult; summary_date: string } | null> => {
+    try {
+      const response = await api.get(`/api/cache/summary/${videoId}`)
       return response.data
     } catch (error: any) {
       if (error.response?.status === 404) {
@@ -268,6 +298,31 @@ export const analysisApi = {
    */
   getDimensionDetails: async (dimensionId: string): Promise<DimensionDefinition> => {
     const response = await api.get<DimensionDefinition>(`/api/analysis/manipulation/dimensions/${dimensionId}`)
+    return response.data
+  },
+
+  /**
+   * Content summary analysis (~10s) - extracts key concepts, TLDR, technical details
+   * Optimized for note-taking and Obsidian export
+   */
+  analyzeSummary: async (
+    transcript: string,
+    transcriptData?: TranscriptSegment[],
+    options?: {
+      videoTitle?: string
+      videoAuthor?: string
+      videoId?: string
+      videoUrl?: string
+    }
+  ): Promise<ContentSummaryResult> => {
+    const response = await api.post<ContentSummaryResult>('/api/analysis/summary', {
+      transcript,
+      transcript_data: transcriptData,
+      video_title: options?.videoTitle,
+      video_author: options?.videoAuthor,
+      video_id: options?.videoId,
+      video_url: options?.videoUrl
+    })
     return response.data
   }
 }

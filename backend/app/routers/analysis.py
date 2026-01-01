@@ -17,8 +17,13 @@ from app.models.manipulation_analysis import (
     ManipulationAnalysisResult,
     AnalysisMode
 )
+from app.models.summary_analysis import (
+    ContentSummaryRequest,
+    ContentSummaryResult
+)
 from app.services.rhetorical_analysis import get_analysis_service
 from app.services.manipulation_pipeline import get_manipulation_pipeline
+from app.services.summary_service import get_summary_service
 from app.data.rhetorical_toolkit import (
     RHETORICAL_TECHNIQUES,
     RHETORICAL_PILLARS,
@@ -312,3 +317,74 @@ async def get_manipulation_technique_details(technique_id: str):
         )
 
     return MANIPULATION_TECHNIQUES[technique_id]
+
+
+# =========================================================================
+# CONTENT SUMMARY ENDPOINTS (v3.0)
+# =========================================================================
+
+@router.post("/summary", response_model=ContentSummaryResult)
+async def analyze_summary(request: ContentSummaryRequest) -> ContentSummaryResult:
+    """
+    Generate a content summary with key concepts, TLDR, and actionable takeaways.
+
+    This is a fast (~10 second) analysis optimized for note-taking and knowledge
+    management. Ideal for exporting to Obsidian or other note-taking apps.
+
+    Features:
+    - Content Type Detection: Identifies if content is programming, tutorial,
+      news, educational, entertainment, etc.
+    - TLDR: 2-3 sentence summary
+    - Key Concepts: Main ideas with brief explanations
+    - Technical Details: For programming content, extracts code, libraries, commands
+    - Action Items: Practical takeaways with priority levels
+    - Keywords/Tags: For organization (Obsidian-compatible)
+    - Key Moments: Important timestamps for quick navigation
+
+    Args:
+        request: ContentSummaryRequest containing:
+            - transcript: The full text to analyze
+            - transcript_data: Optional list of segments with timestamps
+            - video_title: Optional title for context
+            - video_author: Optional author/speaker for context
+            - video_id: Optional YouTube video ID
+            - video_url: Optional full URL for export linking
+
+    Returns:
+        ContentSummaryResult with complete content summary including:
+            - Detected content type with confidence
+            - TLDR summary
+            - Key concepts with explanations
+            - Technical details (if applicable)
+            - Action items with priorities
+            - Keywords and Obsidian tags
+            - Key moments with timestamps
+    """
+    if not request.transcript or len(request.transcript.strip()) < 50:
+        raise HTTPException(
+            status_code=400,
+            detail="Transcript must be at least 50 characters long for meaningful analysis"
+        )
+
+    service = get_summary_service()
+
+    if not service.is_available():
+        raise HTTPException(
+            status_code=503,
+            detail="OpenAI API key not configured. Content summary requires OpenAI."
+        )
+
+    try:
+        result = await service.analyze(request)
+        return result
+
+    except ValueError as e:
+        logger.error(f"Content summary error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+    except Exception as e:
+        logger.error(f"Unexpected error during content summary: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Content summary failed: {str(e)}"
+        )

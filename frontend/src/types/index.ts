@@ -315,3 +315,91 @@ export interface ManipulationToolkit {
   reasoning_techniques: Record<string, ManipulationTechnique>
   propaganda_techniques: Record<string, ManipulationTechnique>
 }
+
+// ==========================================
+// Content Summary Types (v3.0)
+// ==========================================
+
+export type ContentType =
+  | 'programming_technical'
+  | 'tutorial_howto'
+  | 'news_current_events'
+  | 'educational'
+  | 'entertainment'
+  | 'discussion_opinion'
+  | 'review'
+  | 'interview'
+  | 'other'
+
+export type TechnicalCategory =
+  | 'code_snippet'
+  | 'library'
+  | 'framework'
+  | 'command'
+  | 'tool'
+  | 'api'
+  | 'concept'
+
+export type ImportanceLevel = 'high' | 'medium' | 'low'
+
+export interface KeyConcept {
+  concept: string
+  explanation: string
+  importance: ImportanceLevel
+  timestamp?: number
+}
+
+export interface TechnicalDetail {
+  category: TechnicalCategory
+  name: string
+  description?: string
+  code?: string
+  timestamp?: number
+}
+
+export interface SummaryActionItem {
+  action: string
+  context?: string
+  priority: ImportanceLevel
+}
+
+export interface KeyMoment {
+  timestamp: number
+  title: string
+  description: string
+}
+
+export interface ContentSummaryResult {
+  // Content Type Detection
+  content_type: ContentType
+  content_type_confidence: number
+  content_type_reasoning: string
+
+  // Core Content
+  tldr: string
+  key_concepts: KeyConcept[]
+  technical_details: TechnicalDetail[]
+  has_technical_content: boolean
+  action_items: SummaryActionItem[]
+
+  // Organization
+  keywords: string[]
+  suggested_obsidian_tags: string[]
+
+  // Timestamps
+  key_moments: KeyMoment[]
+
+  // Metadata
+  tokens_used: number
+  analysis_duration_seconds: number
+  transcript_word_count: number
+}
+
+export interface ContentSummaryRequest {
+  transcript: string
+  transcript_data?: TranscriptSegment[]
+  video_title?: string
+  video_author?: string
+  video_id?: string
+  video_url?: string
+}
