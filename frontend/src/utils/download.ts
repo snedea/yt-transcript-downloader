@@ -69,3 +69,22 @@ export const generateFilename = (
   return sanitizeFilename(filename) + '.txt'
 }
 
+export const formatTranscriptWithTimestamps = (
+  transcriptData: { text: string; start: number; duration: number }[]
+): string => {
+  const formatTime = (seconds: number): string => {
+    const date = new Date(0)
+    date.setSeconds(seconds)
+    const timeString = date.toISOString().substr(11, 8)
+    return timeString.startsWith('00:') ? timeString.substr(3) : timeString
+  }
+
+  return transcriptData
+    .map((segment) => {
+      const timestamp = formatTime(segment.start)
+      return `[${timestamp}] ${segment.text}`
+    })
+    .join('\n')
+}
+
+

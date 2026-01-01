@@ -1,10 +1,11 @@
 """Transcript API endpoints"""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 import asyncio
 from app.services.youtube import YouTubeService
 from app.services.openai_service import OpenAIService
+from app.services.cache_service import get_cache_service
 from app.utils.url_parser import extract_video_id
 
 router = APIRouter()
@@ -18,6 +19,7 @@ openai_service = OpenAIService()
 class TranscriptRequest(BaseModel):
     video_url: str
     clean: bool = False
+    use_cache: bool = True  # Check cache first, default True
 
 
 class TranscriptResponse(BaseModel):
@@ -27,6 +29,8 @@ class TranscriptResponse(BaseModel):
     author: str = "Unknown"
     upload_date: str = ""
     tokens_used: Optional[int] = None
+    transcript_data: Optional[List[Dict[str, Any]]] = None
+    cached: bool = False  # Whether this came from cache
 
 
 class CleanRequest(BaseModel):
@@ -51,6 +55,7 @@ class TranscriptResult(BaseModel):
     transcript: Optional[str] = None
     error: Optional[str] = None
     tokens_used: Optional[int] = None
+    transcript_data: Optional[List[Dict[str, Any]]] = None
 
 
 class BulkTranscriptResponse(BaseModel):
@@ -64,13 +69,13 @@ class BulkTranscriptResponse(BaseModel):
 async def get_single_transcript(request: TranscriptRequest):
     """
     Fetch transcript for a single YouTube video
-    
+
     Args:
-        request: Contains video_url and optional clean flag
-        
+        request: Contains video_url, optional clean flag, and use_cache flag
+
     Returns:
         Transcript data with video metadata
-        
+
     Raises:
         HTTPException: If URL is invalid or transcript unavailable
     """
@@ -79,36 +84,79 @@ async def get_single_transcript(request: TranscriptRequest):
         video_id = extract_video_id(request.video_url)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    
-    # Fetch transcript
+
+    cache = get_cache_service()
+
+    # Check cache first if enabled
+    if request.use_cache:
+        cached = cache.get(video_id)
+        if cached:
+            # For cached results, check if cleaning was requested but cache has uncleaned
+            if request.clean and not cached.get('is_cleaned'):
+                # Need to re-fetch and clean
+                pass
+            else:
+                # Return cached result
+                return TranscriptResponse(
+                    transcript=cached["transcript"],
+                    video_title=cached["video_title"],
+                    video_id=video_id,
+                    author=cached.get("author", "Unknown"),
+                    upload_date=cached.get("upload_date", ""),
+                    tokens_used=cached.get("tokens_used"),
+                    transcript_data=cached.get("transcript_data"),
+                    cached=True
+                )
+
+    # Fetch transcript from YouTube
     result = await youtube_service.get_transcript(video_id)
-    
+
     if not result["success"]:
         raise HTTPException(status_code=404, detail=result["error"])
-    
+
     transcript_text = result["text"]
+    transcript_data = result.get("transcript")
     tokens_used = None
-    
+    is_cleaned = False
+
     # Clean transcript if requested
     if request.clean:
         clean_result = await openai_service.clean_transcript(transcript_text)
         if clean_result["success"]:
             transcript_text = clean_result["cleaned_transcript"]
             tokens_used = clean_result["tokens_used"]
+            is_cleaned = True
         else:
             # Don't fail entire request if cleaning fails, just log warning
             print(f"Warning: Transcript cleaning failed: {clean_result['error']}")
-    
+
     # Get video metadata (title, author, upload date)
     metadata = await youtube_service.get_video_metadata(video_id)
-    
+    video_title = metadata.get("title", video_id)
+    author = metadata.get("author", "Unknown")
+    upload_date = metadata.get("upload_date", "")
+
+    # Save to cache
+    cache.save(
+        video_id=video_id,
+        video_title=video_title,
+        transcript=transcript_text,
+        author=author,
+        upload_date=upload_date,
+        transcript_data=transcript_data,
+        tokens_used=tokens_used or 0,
+        is_cleaned=is_cleaned
+    )
+
     return TranscriptResponse(
         transcript=transcript_text,
-        video_title=metadata.get("title", video_id),
+        video_title=video_title,
         video_id=video_id,
-        author=metadata.get("author", "Unknown"),
-        upload_date=metadata.get("upload_date", ""),
-        tokens_used=tokens_used
+        author=author,
+        upload_date=upload_date,
+        tokens_used=tokens_used,
+        transcript_data=transcript_data,
+        cached=False
     )
 
 
@@ -176,6 +224,7 @@ async def get_bulk_transcripts(request: BulkTranscriptRequest):
                 )
             
             transcript_text = result["text"]
+            transcript_data = result.get("transcript")
             tokens_used = None
             
             # Clean if requested
@@ -194,7 +243,8 @@ async def get_bulk_transcripts(request: BulkTranscriptRequest):
                 author=metadata.get("author", "Unknown"),
                 upload_date=metadata.get("upload_date", ""),
                 transcript=transcript_text,
-                tokens_used=tokens_used
+                tokens_used=tokens_used,
+                transcript_data=transcript_data
             )
     
     # Fetch all transcripts concurrently with staggered delays

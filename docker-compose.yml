@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - CORS_ORIGINS=http://localhost:3000
+      # Pass through OpenAI key if present in host env, or set it here
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      # Persist transcript cache across container restarts
+      - transcript_cache:/app/data
+    restart: always
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    restart: always
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  transcript_cache:
+    name: yt-transcript-cache
