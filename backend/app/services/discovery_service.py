@@ -286,15 +286,56 @@ Generate up to {max_applications} creative but plausible applications:
 - Recommended reading for deeper exploration
 
 ### 6. EXPERIMENT IDEAS WITH LLM PROMPTS
-For each experiment idea, generate a COMPLETE, OPTIMIZED prompt that someone can copy-paste directly into an LLM (Claude, GPT-4, etc.) to help them execute that experiment. Each prompt should be:
+For each experiment idea, generate a COMPLETE, KICK-ASS prompt that someone can copy-paste directly into an LLM (Claude, GPT-4, etc.) to execute that experiment.
 
-- **Self-contained**: Include all necessary context from the source material
-- **Structured**: Use clear sections, XML tags, or markdown for clarity
-- **Actionable**: Tell the LLM exactly what to do and what output to produce
-- **Research-enabled**: Include commands to search, keywords to look for, sources to check
-- **Tool-aware**: When relevant, include instructions for the LLM to use tools (web search, code execution, etc.)
+**THE PROMPT MUST INCLUDE ALL OF THESE SECTIONS:**
 
-The prompt should help the user actually DO the experiment, not just understand it.
+```
+<context>
+- Detailed background from the source content (not generic!)
+- Specific facts, numbers, techniques mentioned in the original
+- Why this matters and what problem it addresses
+- Any relevant equations, principles, or mechanisms
+</context>
+
+<task>
+- Exactly what to do, step by step
+- Specific domain or dataset to apply this to
+- Clear deliverables
+</task>
+
+<research_queries>
+- 3-5 specific search queries to find relevant papers/resources
+- Keywords and phrases to look for
+- Names of researchers or papers to find
+</research_queries>
+
+<starter_code>
+- Python/JavaScript code skeleton to get started (if applicable)
+- Key functions or algorithms needed
+- Libraries to import
+</starter_code>
+
+<sources_to_check>
+- Specific papers, websites, or databases to consult
+- ArXiv categories, Google Scholar queries
+- GitHub repos or tools to use
+</sources_to_check>
+
+<success_criteria>
+- Measurable outcomes that indicate success
+- What the final output should look like
+- How to validate results
+</success_criteria>
+
+<agent_instructions>
+- If using an AI agent, specific tool calls to make
+- Web searches to perform
+- Code to execute
+</agent_instructions>
+```
+
+**CRITICAL**: The llm_prompt field must be 500-2000 characters. Include SPECIFIC details from the source content - names, numbers, techniques, principles. NOT generic advice. The prompt should let someone with NO context from the original content still execute the experiment successfully.
 
 ## Output Format
 
@@ -351,7 +392,7 @@ Return valid JSON with these EXACT field names:
       "success_criteria": ["How to know if it worked"],
       "related_techniques": ["technique names from above"],
       "related_problems": ["problem statements from above"],
-      "llm_prompt": "A complete, optimized, copy-pasteable prompt. Use XML tags like <context>, <task>, <output_format>, <tools_available>. Include specific keywords, search queries, and instructions for the LLM to research and execute this experiment. Make it comprehensive and actionable - this should be a kick-ass prompt that gives the LLM everything it needs."
+      "llm_prompt": "<context>\\nDetailed background with SPECIFIC facts from the source: names, numbers, equations, principles. Example: 'Benford's Law states leading digit d appears with probability log10(1 + 1/d), meaning ~30% start with 1, ~17.5% with 2. Used to detect fraud in tax returns and election data.'\\n</context>\\n\\n<task>\\n1. Specific step one\\n2. Specific step two\\n3. What to produce\\n</task>\\n\\n<research_queries>\\n- 'benford law [specific domain]'\\n- 'first digit distribution anomaly'\\n- Author names to search\\n</research_queries>\\n\\n<starter_code>\\nimport numpy as np\\ndef benford_expected():\\n    return {{d: np.log10(1 + 1/d) for d in range(1, 10)}}\\n</starter_code>\\n\\n<sources_to_check>\\n- ArXiv: stat.AP (applications)\\n- Specific paper titles mentioned\\n</sources_to_check>\\n\\n<success_criteria>\\n- Collect 1000+ data points\\n- Chi-square test p-value < 0.05 indicates anomaly\\n- Visualization comparing observed vs expected\\n</success_criteria>"
     }}
   ]
 }}
