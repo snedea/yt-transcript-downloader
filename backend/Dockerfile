@@ -7,7 +7,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     gnupg \
     ffmpeg \
-    libgl1-mesa-glx \
+    unzip \
+    libgl1 \
     libglib2.0-0 \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
@@ -15,6 +16,10 @@ RUN apt-get update && apt-get install -y \
 
 # Install Claude CLI globally
 RUN npm install -g @anthropic-ai/claude-code
+
+# Install Deno system-wide (required by yt-dlp for YouTube video downloads)
+RUN curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh \
+    && chmod +x /usr/local/bin/deno
 
 # Copy requirements first to leverage cache
 COPY requirements.txt .

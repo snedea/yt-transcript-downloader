@@ -13,6 +13,71 @@ from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
+# === Constants ===
+
+HEALTH_DISCLAIMER = """EDUCATIONAL TOOL ONLY - NOT MEDICAL ADVICE
+
+This analysis identifies visual observations that MAY warrant professional medical evaluation. This tool:
+
+- Does NOT diagnose medical conditions
+- Does NOT replace healthcare professionals
+- Does NOT account for lighting, camera quality, makeup, or angles
+- Should NEVER be used for treatment decisions
+- May produce false positives due to image quality/lighting
+
+AI observations are NOT determinative. If you have health concerns, please consult a licensed healthcare provider."""
+
+
+CLAUDE_HEALTH_PROMPT = """You are analyzing a video frame for EDUCATIONAL purposes only.
+You are NOT providing medical diagnosis - only observations.
+
+## Your Role
+You are like a friend pointing out "hey, you might want to ask a doctor about that" - NOT a doctor yourself.
+
+## Frame Context
+- Timestamp: {timestamp} seconds ({formatted_time})
+- Body regions visible: {regions}
+- Video: {video_title}
+
+## Your Task
+Examine the visible human(s) and note any observable features that MIGHT be worth mentioning to a healthcare provider. Focus on:
+
+1. **Eyes**: Drooping, discoloration, puffiness, asymmetry
+2. **Skin**: Color changes, texture, visible marks
+3. **Face**: Asymmetry, swelling, unusual features
+4. **Hands**: Swelling, nail changes, joint appearance
+5. **Neck**: Swelling, visible masses
+6. **Posture**: Asymmetry, unusual positioning
+
+## Critical Rules
+- NEVER diagnose - only describe what you observe
+- ALWAYS note limitations (lighting, quality, angle)
+- ALWAYS include confidence percentage (0.0 to 1.0)
+- Rate severity: informational / worth_mentioning / consider_checkup
+- Reference medical literature when relevant
+- Note skin color observation limitations due to lighting
+- If nothing notable is observed, return an empty observations array
+
+## Output Format
+Return ONLY valid JSON (no markdown, no explanation):
+{{
+  "observations": [
+    {{
+      "body_region": "eyes",
+      "observation": "Slight asymmetry in eyelid position, left appears lower",
+      "reasoning": "Eyelid asymmetry can sometimes be normal variation or worth checking",
+      "confidence": 0.6,
+      "limitations": ["Camera angle may exaggerate asymmetry", "Single frame - could be mid-blink"],
+      "severity": "informational",
+      "related_conditions": ["Ptosis (educational context only)"],
+      "references": ["General ophthalmology reference"]
+    }}
+  ],
+  "image_quality_notes": ["Good lighting", "Medium resolution"],
+  "overall_notes": "Limited observations possible from single frame"
+}}"""
+
+
 # === Enums ===
 
 class BodyRegion(str, Enum):
@@ -166,70 +231,7 @@ class HealthObservationRequest(BaseModel):
     )
 
 
-# === Constants ===
-
-HEALTH_DISCLAIMER = """EDUCATIONAL TOOL ONLY - NOT MEDICAL ADVICE
-
-This analysis identifies visual observations that MAY warrant professional medical evaluation. This tool:
-
-- Does NOT diagnose medical conditions
-- Does NOT replace healthcare professionals
-- Does NOT account for lighting, camera quality, makeup, or angles
-- Should NEVER be used for treatment decisions
-- May produce false positives due to image quality/lighting
-
-AI observations are NOT determinative. If you have health concerns, please consult a licensed healthcare provider."""
-
-
-CLAUDE_HEALTH_PROMPT = """You are analyzing a video frame for EDUCATIONAL purposes only.
-You are NOT providing medical diagnosis - only observations.
-
-## Your Role
-You are like a friend pointing out "hey, you might want to ask a doctor about that" - NOT a doctor yourself.
-
-## Frame Context
-- Timestamp: {timestamp} seconds ({formatted_time})
-- Body regions visible: {regions}
-- Video: {video_title}
-
-## Your Task
-Examine the visible human(s) and note any observable features that MIGHT be worth mentioning to a healthcare provider. Focus on:
-
-1. **Eyes**: Drooping, discoloration, puffiness, asymmetry
-2. **Skin**: Color changes, texture, visible marks
-3. **Face**: Asymmetry, swelling, unusual features
-4. **Hands**: Swelling, nail changes, joint appearance
-5. **Neck**: Swelling, visible masses
-6. **Posture**: Asymmetry, unusual positioning
-
-## Critical Rules
-- NEVER diagnose - only describe what you observe
-- ALWAYS note limitations (lighting, quality, angle)
-- ALWAYS include confidence percentage (0.0 to 1.0)
-- Rate severity: informational / worth_mentioning / consider_checkup
-- Reference medical literature when relevant
-- Note skin color observation limitations due to lighting
-- If nothing notable is observed, return an empty observations array
-
-## Output Format
-Return ONLY valid JSON (no markdown, no explanation):
-{{
-  "observations": [
-    {{
-      "body_region": "eyes",
-      "observation": "Slight asymmetry in eyelid position, left appears lower",
-      "reasoning": "Eyelid asymmetry can sometimes be normal variation or worth checking",
-      "confidence": 0.6,
-      "limitations": ["Camera angle may exaggerate asymmetry", "Single frame - could be mid-blink"],
-      "severity": "informational",
-      "related_conditions": ["Ptosis (educational context only)"],
-      "references": ["General ophthalmology reference"]
-    }}
-  ],
-  "image_quality_notes": ["Good lighting", "Medium resolution"],
-  "overall_notes": "Limited observations possible from single frame"
-}}"""
-
+# === Helper Functions ===
 
 def format_timestamp(seconds: float) -> str:
     """Format seconds as MM:SS or HH:MM:SS."""
