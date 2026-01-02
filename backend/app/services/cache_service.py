@@ -84,7 +84,17 @@ class TranscriptCacheService:
                 ON transcripts(last_accessed DESC)
             """)
 
-            # Create FTS5 virtual table for full-text search
+            # Create FTS5 virtual table for full-text search (standalone)
+            # Drop old table if schema is incompatible, then recreate
+            try:
+                conn.execute("SELECT video_id FROM transcripts_fts LIMIT 1")
+            except sqlite3.OperationalError:
+                # Table doesn't exist or has wrong schema, drop and recreate
+                conn.execute("DROP TABLE IF EXISTS transcripts_fts")
+                conn.execute("DROP TRIGGER IF EXISTS transcripts_fts_ai")
+                conn.execute("DROP TRIGGER IF EXISTS transcripts_fts_ad")
+                conn.execute("DROP TRIGGER IF EXISTS transcripts_fts_au")
+
             conn.execute("""
                 CREATE VIRTUAL TABLE IF NOT EXISTS transcripts_fts USING fts5(
                     video_id,
@@ -92,33 +102,29 @@ class TranscriptCacheService:
                     author,
                     transcript,
                     tags,
-                    content_type,
-                    content='transcripts',
-                    content_rowid='rowid'
+                    content_type
                 )
             """)
 
-            # Create triggers to keep FTS in sync
+            # Create triggers to keep FTS in sync with main table
             conn.execute("""
                 CREATE TRIGGER IF NOT EXISTS transcripts_fts_ai AFTER INSERT ON transcripts BEGIN
-                    INSERT INTO transcripts_fts(rowid, video_id, video_title, author, transcript, tags, content_type)
-                    VALUES (new.rowid, new.video_id, new.video_title, COALESCE(new.author, ''), new.transcript, '', '');
+                    INSERT INTO transcripts_fts(video_id, video_title, author, transcript, tags, content_type)
+                    VALUES (new.video_id, new.video_title, COALESCE(new.author, ''), new.transcript, '', '');
                 END
             """)
 
             conn.execute("""
                 CREATE TRIGGER IF NOT EXISTS transcripts_fts_ad AFTER DELETE ON transcripts BEGIN
-                    INSERT INTO transcripts_fts(transcripts_fts, rowid, video_id, video_title, author, transcript, tags, content_type)
-                    VALUES ('delete', old.rowid, old.video_id, old.video_title, COALESCE(old.author, ''), old.transcript, '', '');
+                    DELETE FROM transcripts_fts WHERE video_id = old.video_id;
                 END
             """)
 
             conn.execute("""
                 CREATE TRIGGER IF NOT EXISTS transcripts_fts_au AFTER UPDATE ON transcripts BEGIN
-                    INSERT INTO transcripts_fts(transcripts_fts, rowid, video_id, video_title, author, transcript, tags, content_type)
-                    VALUES ('delete', old.rowid, old.video_id, old.video_title, COALESCE(old.author, ''), old.transcript, '', '');
-                    INSERT INTO transcripts_fts(rowid, video_id, video_title, author, transcript, tags, content_type)
-                    VALUES (new.rowid, new.video_id, new.video_title, COALESCE(new.author, ''), new.transcript, '', '');
+                    DELETE FROM transcripts_fts WHERE video_id = old.video_id;
+                    INSERT INTO transcripts_fts(video_id, video_title, author, transcript, tags, content_type)
+                    VALUES (new.video_id, new.video_title, COALESCE(new.author, ''), new.transcript, '', '');
                 END
             """)
 
@@ -515,7 +521,6 @@ class TranscriptCacheService:
         """Internal method to rebuild FTS index with an existing connection."""
         cursor = conn.execute("""
             SELECT
-                rowid,
                 video_id,
                 video_title,
                 author,
@@ -537,9 +542,9 @@ class TranscriptCacheService:
                     pass
 
             conn.execute("""
-                INSERT INTO transcripts_fts(rowid, video_id, video_title, author, transcript, tags, content_type)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (row['rowid'], row['video_id'], row['video_title'],
+                INSERT INTO transcripts_fts(video_id, video_title, author, transcript, tags, content_type)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (row['video_id'], row['video_title'],
                   row['author'] or '', row['transcript'], tags, content_type))
 
         conn.commit()
