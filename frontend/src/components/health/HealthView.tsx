@@ -258,8 +258,8 @@ export function HealthView() {
             </button>
             <HealthObservations
               result={result}
-              videoId={result.video_id}
               videoTitle={result.video_title}
+              videoUrl={result.video_url}
               isCached={false}
               onReanalyze={handleReset}
               isReanalyzing={isAnalyzing}
