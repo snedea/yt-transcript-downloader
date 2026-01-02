@@ -3,10 +3,11 @@
 import { useState } from 'react'
 import SingleDownload from '@/components/SingleDownload'
 import BulkDownload from '@/components/BulkDownload'
+import VideoDetail from '@/components/VideoDetail'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { LibraryView } from '@/components/library/LibraryView'
 
-type ViewType = 'library' | 'new'
+type ViewType = 'library' | 'new' | 'detail'
 type NewVideoTab = 'single' | 'bulk'
 
 export default function Home() {
@@ -17,7 +18,12 @@ export default function Home() {
 
   const handleVideoSelect = (videoId: string) => {
     setSelectedVideoId(videoId)
-    setCurrentView('new') // Switch to single view to show the video
+    setCurrentView('detail') // Show video detail view
+  }
+
+  const handleBackToLibrary = () => {
+    setSelectedVideoId(null)
+    setCurrentView('library')
   }
 
   const handleTranscriptFetched = () => {
@@ -39,6 +45,8 @@ export default function Home() {
       <main className="flex-1 overflow-hidden">
         {currentView === 'library' ? (
           <LibraryView onVideoSelect={handleVideoSelect} />
+        ) : currentView === 'detail' && selectedVideoId ? (
+          <VideoDetail videoId={selectedVideoId} onBack={handleBackToLibrary} />
         ) : (
           <div className="h-full overflow-auto">
             <div className="container mx-auto px-4 py-8">
@@ -82,7 +90,7 @@ export default function Home() {
                 {/* Content */}
                 {newVideoTab === 'single' ? (
                   <SingleDownload
-                    selectedVideoId={selectedVideoId}
+                    selectedVideoId={null}
                     onTranscriptFetched={handleTranscriptFetched}
                   />
                 ) : (
