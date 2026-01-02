@@ -450,3 +450,167 @@ export interface ContentSummaryRequest {
   video_id?: string
   video_url?: string
 }
+
+// ==========================================
+// Discovery Mode Types (v4.0 - Kinoshita Pattern)
+// ==========================================
+
+export type ContentSourceType = 'youtube' | 'pdf' | 'web_url' | 'plain_text' | 'markdown'
+
+/**
+ * A problem or goal identified in the content.
+ */
+export interface Problem {
+  problem_id: string
+  statement: string
+  context: string
+  blockers: string[]
+  domain: string
+  timestamp?: number
+}
+
+/**
+ * A technique or method described in the content.
+ */
+export interface Technique {
+  technique_id: string
+  name: string
+  principle: string
+  implementation: string
+  requirements: string[]
+  domain: string
+  source?: string
+  timestamp?: number
+}
+
+/**
+ * Potential application of a technique in another domain.
+ */
+export interface CrossDomainApplication {
+  application_id: string
+  source_technique: string
+  target_domain: string
+  hypothesis: string
+  potential_problems_solved: string[]
+  adaptation_needed: string
+  confidence: number
+  similar_existing_work?: string
+}
+
+/**
+ * A reference mentioned or implied in the content.
+ */
+export interface ResearchReference {
+  reference_id: string
+  title?: string
+  authors: string[]
+  year?: number
+  domain: string
+  relevance: string
+  mentioned_at?: number
+}
+
+/**
+ * A concrete experiment idea with an optimized LLM prompt for execution.
+ */
+export interface ExperimentIdea {
+  experiment_id: string
+  title: string
+  description: string
+  difficulty: 'easy' | 'medium' | 'hard'
+  time_estimate: string
+  prerequisites: string[]
+  success_criteria: string[]
+  llm_prompt: string
+  related_techniques: string[]
+  related_problems: string[]
+}
+
+/**
+ * Full discovery analysis result using the Kinoshita Pattern.
+ */
+export interface DiscoveryResult {
+  // Content identification
+  content_title: string
+  source_type: ContentSourceType
+  source_id: string
+  source_url?: string
+
+  // The Kinoshita Pattern extractions
+  problems: Problem[]
+  techniques: Technique[]
+  cross_domain_applications: CrossDomainApplication[]
+  research_trail: ResearchReference[]
+
+  // Synthesis
+  key_insights: string[]
+  recommended_reads: string[]
+  experiment_ideas: ExperimentIdea[]
+
+  // Metadata
+  analysis_version: string
+  tokens_used: number
+  analysis_duration_seconds: number
+  analyzed_at: string
+}
+
+/**
+ * Request for discovery analysis.
+ */
+export interface DiscoveryRequest {
+  source?: string
+  source_type?: ContentSourceType
+  video_id?: string
+  focus_domains?: string[]
+  max_applications?: number
+}
+
+/**
+ * Lightweight summary for library display.
+ */
+export interface DiscoverySummary {
+  source_id: string
+  content_title: string
+  source_type: ContentSourceType
+  problem_count: number
+  technique_count: number
+  application_count: number
+  top_insight?: string
+  analyzed_at: string
+}
+
+/**
+ * Unified content representation from any source.
+ */
+export interface UnifiedContent {
+  text: string
+  source_type: ContentSourceType
+  source_id: string
+  source_url?: string
+  title: string
+  author?: string
+  upload_date?: string
+  word_count: number
+  character_count: number
+  extraction_success: boolean
+  extraction_error?: string
+}
+
+/**
+ * Content extraction request.
+ */
+export interface ContentExtractionRequest {
+  source: string
+  source_type?: ContentSourceType
+  title?: string
+  author?: string
+}
+
+/**
+ * Response after uploading and extracting content.
+ */
+export interface ContentUploadResponse {
+  success: boolean
+  content?: UnifiedContent
+  error?: string
+}

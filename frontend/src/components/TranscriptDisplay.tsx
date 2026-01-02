@@ -5,13 +5,15 @@ import { downloadTextFile, copyToClipboard, generateFilename, formatTranscriptWi
 import { useRhetoricalAnalysis } from '@/hooks/useRhetoricalAnalysis'
 import { useManipulationAnalysis } from '@/hooks/useManipulationAnalysis'
 import { useContentSummary } from '@/hooks/useContentSummary'
+import { useDiscovery } from '@/hooks/useDiscovery'
 import { RhetoricalAnalysis } from '@/components/analysis/RhetoricalAnalysis'
 import { ManipulationAnalysis } from '@/components/analysis/ManipulationAnalysis'
 import { ContentSummary } from '@/components/analysis/ContentSummary'
+import { DiscoveryMode } from '@/components/analysis/DiscoveryMode'
 import { AnalysisModeSelector, AnalysisProgressBar, CompactModeSelector } from '@/components/analysis/AnalysisModeSelector'
-import type { TranscriptSegment, AnalysisMode } from '@/types'
+import type { TranscriptSegment, AnalysisMode, DiscoveryResult } from '@/types'
 
-type AnalysisType = 'rhetorical' | 'manipulation' | 'summary'
+type AnalysisType = 'rhetorical' | 'manipulation' | 'summary' | 'discovery'
 
 interface TranscriptDisplayProps {
   transcript: string
@@ -31,6 +33,9 @@ interface TranscriptDisplayProps {
   // Content summary
   cachedSummary?: import('@/types').ContentSummaryResult
   summaryDate?: string
+  // Discovery analysis (Kinoshita Pattern)
+  cachedDiscovery?: import('@/types').DiscoveryResult
+  discoveryDate?: string
 }
 
 export default function TranscriptDisplay({
@@ -47,10 +52,12 @@ export default function TranscriptDisplay({
   cachedManipulation,
   manipulationDate,
   cachedSummary,
-  summaryDate
+  summaryDate,
+  cachedDiscovery,
+  discoveryDate
 }: TranscriptDisplayProps) {
   const [copied, setCopied] = useState(false)
-  const [showAnalysis, setShowAnalysis] = useState(cachedAnalysis || cachedManipulation || cachedSummary ? true : false)
+  const [showAnalysis, setShowAnalysis] = useState(cachedAnalysis || cachedManipulation || cachedSummary || cachedDiscovery ? true : false)
   const [verifyQuotes, setVerifyQuotes] = useState(true)
   const [analysisType, setAnalysisType] = useState<AnalysisType>('summary')
   const [showModeSelector, setShowModeSelector] = useState(false)  // Show mode selector for manipulation only
@@ -91,16 +98,32 @@ export default function TranscriptDisplay({
     reset: resetSummary
   } = useContentSummary()
 
+  // Discovery hook (v4.0 - Kinoshita Pattern)
+  const {
+    loading: discoveryLoading,
+    error: discoveryError,
+    result: discoveryResult,
+    isCached: isDiscoveryCached,
+    progress: discoveryProgress,
+    analyzeFromVideoId: analyzeDiscovery,
+    setFromCache: setDiscoveryFromCache,
+    reset: resetDiscovery
+  } = useDiscovery()
+
   // Combined state
   const analyzing = analysisType === 'rhetorical'
     ? rhetoricalLoading
     : analysisType === 'manipulation'
     ? manipulationLoading
+    : analysisType === 'discovery'
+    ? discoveryLoading
     : summaryLoading
   const analysisError = analysisType === 'rhetorical'
     ? rhetoricalError
     : analysisType === 'manipulation'
     ? manipulationError
+    : analysisType === 'discovery'
+    ? discoveryError
     : summaryError
 
   // Reset analysis state when video changes
@@ -108,8 +131,9 @@ export default function TranscriptDisplay({
     resetRhetorical()
     resetManipulation()
     resetSummary()
+    resetDiscovery()
     setShowAnalysis(false)
-  }, [videoId, resetRhetorical, resetManipulation, resetSummary])
+  }, [videoId, resetRhetorical, resetManipulation, resetSummary, resetDiscovery])
 
   // Load ALL cached analyses after reset (so user can switch between them)
   useEffect(() => {
@@ -137,11 +161,17 @@ export default function TranscriptDisplay({
       hasAnyCached = true
     }
 
+    // Load cached discovery analysis (v4.0 - Kinoshita Pattern)
+    if (cachedDiscovery) {
+      setDiscoveryFromCache(cachedDiscovery)
+      hasAnyCached = true
+    }
+
     if (hasAnyCached) {
       setAnalysisType(defaultType)
       setShowAnalysis(true)
     }
-  }, [videoId, cachedAnalysis, cachedManipulation, cachedSummary, setRhetoricalFromCache, setManipulationFromCache, setSummaryFromCache])
+  }, [videoId, cachedAnalysis, cachedManipulation, cachedSummary, cachedDiscovery, setRhetoricalFromCache, setManipulationFromCache, setSummaryFromCache, setDiscoveryFromCache])
 
   const handleCopy = async () => {
     const success = await copyToClipboard(transcript)
@@ -184,6 +214,11 @@ export default function TranscriptDisplay({
         videoAuthor: author,
         videoId
       })
+    } else if (analysisType === 'discovery') {
+      // Discovery Mode
+      await analyzeDiscovery(videoId, {
+        videoId
+      })
     } else {
       // Content Summary
       const videoUrl = videoId ? `https://youtube.com/watch?v=${videoId}` : undefined
@@ -201,6 +236,7 @@ export default function TranscriptDisplay({
     resetRhetorical()
     resetManipulation()
     resetSummary()
+    resetDiscovery()
   }
 
   // Re-analyze summary with fresh API call (bypasses cache)
@@ -330,9 +366,24 @@ export default function TranscriptDisplay({
                   🎭 Rhetoric
                   {rhetoricalResult && <span className="absolute -top-1 -right-1 w-2 h-2 bg-purple-500 rounded-full" />}
                 </button>
+                <button
+                  onClick={() => {
+                    setAnalysisType('discovery')
+                    setShowModeSelector(false)
+                    if (discoveryResult) setShowAnalysis(true)
+                  }}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all relative ${
+                    analysisType === 'discovery'
+                      ? 'bg-white dark:bg-gray-600 text-purple-600 dark:text-purple-400 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  }`}
+                >
+                  🔬 Discovery
+                  {discoveryResult && <span className="absolute -top-1 -right-1 w-2 h-2 bg-purple-500 rounded-full" />}
+                </button>
               </div>
               <span className="text-xs text-gray-500 dark:text-gray-500">
-                {analysisType === 'summary' ? 'Key concepts & export' : analysisType === 'manipulation' ? 'v2.0 - 5 dimensions' : 'v1.0 - 4 pillars'}
+                {analysisType === 'summary' ? 'Key concepts & export' : analysisType === 'manipulation' ? 'v2.0 - 5 dimensions' : analysisType === 'discovery' ? 'Kinoshita Pattern' : 'v1.0 - 4 pillars'}
               </span>
             </div>
 
@@ -372,6 +423,8 @@ export default function TranscriptDisplay({
                 className={`flex-1 sm:flex-none font-medium py-2.5 px-6 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
                   analysisType === 'summary'
                     ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white'
+                    : analysisType === 'discovery'
+                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white'
                     : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white'
                 }`}
               >
@@ -397,16 +450,20 @@ export default function TranscriptDisplay({
                       ? 'Extracting Key Concepts...'
                       : analysisType === 'manipulation'
                       ? `Running ${analysisMode === 'deep' ? 'Deep' : 'Quick'} Analysis...`
+                      : analysisType === 'discovery'
+                      ? 'Running Discovery Analysis...'
                       : 'Analyzing Rhetoric...'
                     }
                   </>
                 ) : (
                   <>
-                    <span>{analysisType === 'summary' ? '📋' : analysisType === 'manipulation' ? '🔬' : '🎭'}</span>
+                    <span>{analysisType === 'summary' ? '📋' : analysisType === 'manipulation' ? '🔬' : analysisType === 'discovery' ? '🔬' : '🎭'}</span>
                     {analysisType === 'summary'
                       ? 'Get Summary'
                       : analysisType === 'manipulation'
                       ? `${analysisMode === 'deep' ? 'Deep' : 'Quick'} Analysis`
+                      : analysisType === 'discovery'
+                      ? 'Run Discovery'
                       : 'Analyze Rhetoric'
                     }
                   </>
@@ -428,6 +485,8 @@ export default function TranscriptDisplay({
                 ? 'Extract key concepts, TLDR, technical details, and action items. Export to Markdown, TXT, or JSON for Obsidian notes.'
                 : analysisType === 'manipulation'
                 ? `Detect manipulation tactics and score content trustworthiness across 5 dimensions. Higher scores = more trustworthy. ${analysisMode === 'deep' ? 'Deep mode verifies factual claims.' : ''}`
+                : analysisType === 'discovery'
+                ? 'Apply the Kinoshita Pattern to extract problems, techniques, and cross-domain applications. Discover transferable insights inspired by how EUV lithography was invented.'
                 : 'Analyze the transcript for rhetorical techniques using AI. Identifies persuasion strategies, scores the four pillars (Logos, Pathos, Ethos, Kairos), and detects quotes/attributions.'
               }
             </p>
@@ -480,6 +539,8 @@ export default function TranscriptDisplay({
                 ? 'Extracting Key Concepts...'
                 : analysisType === 'manipulation'
                 ? `Running ${analysisMode === 'deep' ? 'Deep' : 'Quick'} Analysis...`
+                : analysisType === 'discovery'
+                ? 'Running Discovery Analysis...'
                 : 'Analyzing Rhetorical Techniques...'
               }
             </h4>
@@ -488,6 +549,21 @@ export default function TranscriptDisplay({
             {analysisType === 'manipulation' && manipulationProgress && (
               <div className="w-full max-w-md mb-4">
                 <AnalysisProgressBar progress={manipulationProgress} />
+              </div>
+            )}
+
+            {/* Progress bar for discovery analysis */}
+            {analysisType === 'discovery' && discoveryProgress && (
+              <div className="w-full max-w-md mb-4">
+                <div className="text-sm text-indigo-600 dark:text-indigo-400 mb-2">
+                  {discoveryProgress.phase_name}
+                </div>
+                <div className="h-2 bg-indigo-100 dark:bg-indigo-900/50 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-indigo-500 transition-all duration-500"
+                    style={{ width: `${discoveryProgress.progress}%` }}
+                  />
+                </div>
               </div>
             )}
 
@@ -502,6 +578,8 @@ export default function TranscriptDisplay({
                 ? analysisMode === 'deep'
                   ? 'Running multi-pass analysis: extracting claims, scanning for manipulation techniques, scoring dimensions, and verifying claims. This takes about 60 seconds.'
                   : 'Analyzing content across 5 dimensions: Epistemic Integrity, Argument Quality, Manipulation Risk, Rhetorical Craft, and Fairness. This takes about 15 seconds.'
+                : analysisType === 'discovery'
+                ? 'Applying the Kinoshita Pattern: extracting problems, techniques, cross-domain applications, and research trail. This takes about 30 seconds.'
                 : `Our AI is examining the transcript for persuasion techniques, scoring the four pillars of rhetoric, and ${verifyQuotes ? 'verifying quotes via web search' : 'identifying potential quotes'}. This may take 30-60 seconds.`
               }
             </p>
@@ -513,7 +591,8 @@ export default function TranscriptDisplay({
       {showAnalysis && (
         (analysisType === 'summary' && summaryResult) ||
         (analysisType === 'manipulation' && manipulationResult) ||
-        (analysisType === 'rhetorical' && rhetoricalResult)
+        (analysisType === 'rhetorical' && rhetoricalResult) ||
+        (analysisType === 'discovery' && discoveryResult)
       ) && (
         <div className="relative">
           <button
@@ -555,6 +634,17 @@ export default function TranscriptDisplay({
               videoAuthor={author}
               isCached={isRhetoricalCached}
               analysisDate={analysisDate}
+            />
+          )}
+          {analysisType === 'discovery' && discoveryResult && (
+            <DiscoveryMode
+              result={discoveryResult}
+              videoTitle={videoTitle}
+              videoAuthor={author}
+              videoUrl={videoId ? `https://youtube.com/watch?v=${videoId}` : undefined}
+              isCached={isDiscoveryCached}
+              onReanalyze={() => analyzeDiscovery(videoId, { videoId })}
+              isReanalyzing={discoveryLoading}
             />
           )}
         </div>

@@ -6,8 +6,9 @@ import BulkDownload from '@/components/BulkDownload'
 import VideoDetail from '@/components/VideoDetail'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { LibraryView } from '@/components/library/LibraryView'
+import { DiscoveryView } from '@/components/discovery/DiscoveryView'
 
-type ViewType = 'library' | 'new' | 'detail'
+type ViewType = 'library' | 'new' | 'detail' | 'discover'
 type NewVideoTab = 'single' | 'bulk'
 
 export default function Home() {
@@ -47,6 +48,8 @@ export default function Home() {
           <LibraryView onVideoSelect={handleVideoSelect} />
         ) : currentView === 'detail' && selectedVideoId ? (
           <VideoDetail videoId={selectedVideoId} onBack={handleBackToLibrary} />
+        ) : currentView === 'discover' ? (
+          <DiscoveryView />
         ) : (
           <div className="h-full overflow-auto">
             <div className="container mx-auto px-4 py-8">

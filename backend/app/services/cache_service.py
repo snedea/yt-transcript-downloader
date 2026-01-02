@@ -88,6 +88,16 @@ class TranscriptCacheService:
             except sqlite3.OperationalError:
                 pass  # Column already exists
 
+            # Add discovery_result columns (Kinoshita Pattern analysis)
+            try:
+                conn.execute("ALTER TABLE transcripts ADD COLUMN discovery_result TEXT")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+            try:
+                conn.execute("ALTER TABLE transcripts ADD COLUMN discovery_date TEXT")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+
             # Create index for faster lookups
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_last_accessed
@@ -210,6 +220,13 @@ class TranscriptCacheService:
                         result['manipulation_result'] = json.loads(result['manipulation_result'])
                     except json.JSONDecodeError:
                         result['manipulation_result'] = None
+
+                # Parse discovery_result JSON if present
+                if result.get('discovery_result'):
+                    try:
+                        result['discovery_result'] = json.loads(result['discovery_result'])
+                    except json.JSONDecodeError:
+                        result['discovery_result'] = None
 
                 # Convert is_cleaned to bool
                 result['is_cleaned'] = bool(result.get('is_cleaned', 0))
@@ -594,6 +611,77 @@ class TranscriptCacheService:
             )
             return cursor.fetchone() is not None
 
+    def save_discovery(self, video_id: str, discovery_result: Dict[str, Any]) -> bool:
+        """
+        Save discovery (Kinoshita Pattern) analysis results for a video.
+
+        Args:
+            video_id: YouTube video ID
+            discovery_result: The complete discovery result dictionary
+
+        Returns:
+            True if saved successfully, False otherwise
+        """
+        now = datetime.utcnow().isoformat()
+        discovery_json = json.dumps(discovery_result)
+
+        try:
+            with self._get_connection() as conn:
+                conn.execute(
+                    """
+                    UPDATE transcripts
+                    SET discovery_result = ?, discovery_date = ?
+                    WHERE video_id = ?
+                    """,
+                    (discovery_json, now, video_id)
+                )
+                conn.commit()
+
+                if conn.total_changes > 0:
+                    logger.info(f"Saved discovery analysis for video {video_id}")
+                    return True
+                else:
+                    logger.warning(f"No transcript found to save discovery analysis for video {video_id}")
+                    return False
+
+        except Exception as e:
+            logger.error(f"Failed to save discovery analysis: {e}")
+            return False
+
+    def get_discovery(self, video_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get cached discovery (Kinoshita Pattern) results for a video.
+
+        Returns:
+            Discovery result dict or None if not found
+        """
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT discovery_result, discovery_date FROM transcripts WHERE video_id = ?",
+                (video_id,)
+            )
+            row = cursor.fetchone()
+
+            if row and row['discovery_result']:
+                try:
+                    return {
+                        'discovery': json.loads(row['discovery_result']),
+                        'discovery_date': row['discovery_date']
+                    }
+                except json.JSONDecodeError:
+                    return None
+
+            return None
+
+    def has_discovery(self, video_id: str) -> bool:
+        """Check if a video has cached discovery analysis."""
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT 1 FROM transcripts WHERE video_id = ? AND discovery_result IS NOT NULL",
+                (video_id,)
+            )
+            return cursor.fetchone() is not None
+
     def _ensure_fts_populated(self):
         """Ensure FTS index is populated with existing transcript data."""
         with self._get_connection() as conn:
@@ -817,12 +905,24 @@ class TranscriptCacheService:
             with_analysis = conn.execute(
                 "SELECT COUNT(*) FROM transcripts WHERE analysis_result IS NOT NULL"
             ).fetchone()[0]
+            with_trust = conn.execute(
+                "SELECT COUNT(*) FROM transcripts WHERE manipulation_result IS NOT NULL"
+            ).fetchone()[0]
+            with_discovery = conn.execute(
+                "SELECT COUNT(*) FROM transcripts WHERE discovery_result IS NOT NULL"
+            ).fetchone()[0]
 
             return {
                 'total': total,
                 'with_summary': with_summary,
-                'with_analysis': with_analysis
+                'with_analysis': with_analysis,
+                'with_trust': with_trust,
+                'with_discovery': with_discovery
             }
+
+    def get_transcript(self, video_id: str) -> Optional[Dict[str, Any]]:
+        """Alias for get() method for API compatibility."""
+        return self.get(video_id)
 
 
 # Singleton instance
@@ -835,3 +935,7 @@ def get_cache_service() -> TranscriptCacheService:
     if _cache_service is None:
         _cache_service = TranscriptCacheService()
     return _cache_service
+
+
+# Alias for backwards compatibility
+CacheService = TranscriptCacheService

@@ -21,9 +21,17 @@ from app.models.summary_analysis import (
     ContentSummaryRequest,
     ContentSummaryResult
 )
+from app.models.discovery import (
+    DiscoveryRequest,
+    DiscoveryResult
+)
+from app.models.content import UnifiedContent
 from app.services.rhetorical_analysis import get_analysis_service
 from app.services.manipulation_pipeline import get_manipulation_pipeline
 from app.services.summary_service import get_summary_service
+from app.services.discovery_service import DiscoveryService
+from app.services.content_extractor import extract_content
+from app.services.cache_service import CacheService
 from app.data.rhetorical_toolkit import (
     RHETORICAL_TECHNIQUES,
     RHETORICAL_PILLARS,
@@ -387,4 +395,157 @@ async def analyze_summary(request: ContentSummaryRequest) -> ContentSummaryResul
         raise HTTPException(
             status_code=500,
             detail=f"Content summary failed: {str(e)}"
+        )
+
+
+# =========================================================================
+# DISCOVERY MODE ENDPOINTS (v4.0 - Kinoshita Pattern)
+# =========================================================================
+
+@router.post("/discovery", response_model=DiscoveryResult)
+async def analyze_discovery(request: DiscoveryRequest) -> DiscoveryResult:
+    """
+    Perform Discovery Mode analysis using the Kinoshita Pattern.
+
+    This analysis extracts cross-domain knowledge transfer opportunities
+    inspired by how Hiroo Kinoshita discovered EUV lithography by reading
+    papers from other fields.
+
+    Features:
+    - Problem Extraction: Identifies problems, goals, and blockers
+    - Technique Identification: Extracts methods, principles, and mechanisms
+    - Cross-Domain Applications: Generates hypotheses for applying techniques elsewhere
+    - Research Trail: Captures references and sources mentioned
+    - Experiment Ideas: Concrete next steps for exploration
+
+    Accepts content from multiple sources:
+    - YouTube URLs (extracts transcript)
+    - Web URLs (extracts article content)
+    - PDF files (extracts text)
+    - Plain text (direct analysis)
+    - Cached video_id (uses existing transcript)
+
+    Args:
+        request: DiscoveryRequest containing:
+            - source: URL, file path, or raw text (optional if video_id provided)
+            - source_type: Content type (auto-detected if not provided)
+            - video_id: For cached YouTube content
+            - focus_domains: Optional domains to prioritize for suggestions
+            - max_applications: Maximum cross-domain applications (1-10)
+
+    Returns:
+        DiscoveryResult with complete Kinoshita Pattern analysis including:
+            - Problems with blockers and context
+            - Techniques with principles and requirements
+            - Cross-domain applications with confidence scores
+            - Research references
+            - Key insights, recommended reads, and experiment ideas
+    """
+    discovery_service = DiscoveryService()
+
+    if not discovery_service.is_available():
+        raise HTTPException(
+            status_code=503,
+            detail="OpenAI API key not configured. Discovery analysis requires OpenAI."
+        )
+
+    # Get content - either from source or cached video
+    content: UnifiedContent
+
+    if request.video_id:
+        # Load from cache
+        cache_service = CacheService()
+        cached = cache_service.get_transcript(request.video_id)
+
+        if not cached:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Video {request.video_id} not found in cache"
+            )
+
+        # Build UnifiedContent from cached data
+        from app.models.content import ContentSourceType, ContentSegment
+
+        transcript_text = cached.get("cleaned_transcript") or cached.get("transcript", "")
+        if not transcript_text:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No transcript available for video {request.video_id}"
+            )
+
+        content = UnifiedContent(
+            text=transcript_text,
+            source_type=ContentSourceType.YOUTUBE,
+            source_id=request.video_id,
+            source_url=f"https://youtube.com/watch?v={request.video_id}",
+            title=cached.get("title", f"Video {request.video_id}"),
+            author=cached.get("author"),
+            word_count=len(transcript_text.split()),
+            character_count=len(transcript_text)
+        )
+
+    elif request.source:
+        # Extract from provided source
+        try:
+            content = await extract_content(
+                source=request.source,
+                source_type=request.source_type
+            )
+
+            if not content.extraction_success:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Content extraction failed: {content.extraction_error}"
+                )
+
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Either 'source' or 'video_id' must be provided"
+        )
+
+    # Validate content length
+    if content.word_count < 50:
+        raise HTTPException(
+            status_code=400,
+            detail="Content must be at least 50 words for meaningful analysis"
+        )
+
+    # Perform discovery analysis
+    try:
+        result = await discovery_service.analyze(
+            content=content,
+            focus_domains=request.focus_domains,
+            max_applications=request.max_applications
+        )
+
+        if not result["success"]:
+            raise HTTPException(
+                status_code=500,
+                detail=result.get("error", "Discovery analysis failed")
+            )
+
+        discovery_result = result["result"]
+
+        # Save to cache if this was a YouTube video
+        if request.video_id:
+            cache_service = CacheService()
+            # Convert DiscoveryResult to dict for storage
+            result_dict = discovery_result.model_dump() if hasattr(discovery_result, 'model_dump') else discovery_result.dict()
+            cache_service.save_discovery(request.video_id, result_dict)
+            logger.info(f"Saved discovery result for video {request.video_id}")
+
+        return discovery_result
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        logger.error(f"Unexpected error during discovery analysis: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Discovery analysis failed: {str(e)}"
         )

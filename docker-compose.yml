@@ -1,17 +1,33 @@
 services:
+  caddy:
+    build:
+      context: ./caddy
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - CF_API_TOKEN=${CF_API_TOKEN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: always
+    depends_on:
+      - frontend
+      - backend
+
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     environment:
       - ENVIRONMENT=production
-      - CORS_ORIGINS=http://localhost:3000
-      # Pass through OpenAI key if present in host env, or set it here
+      - CORS_ORIGINS=http://localhost:3000,http://yt.llam.ai,https://yt.llam.ai,http://100.70.254.21
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     volumes:
-      # Persist transcript cache across container restarts
       - transcript_cache:/app/data
     restart: always
     healthcheck:
@@ -25,10 +41,12 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
+      args:
+        - NEXT_PUBLIC_API_URL=
+    expose:
+      - "3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_API_URL=
     restart: always
     depends_on:
       backend:
@@ -37,3 +55,5 @@ services:
 volumes:
   transcript_cache:
     name: yt-transcript-cache
+  caddy_data:
+  caddy_config:

@@ -2,7 +2,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.routers import transcript, playlist, analysis, cache
+from app.routers import transcript, playlist, analysis, cache, content
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -25,6 +25,7 @@ app.include_router(transcript.router, prefix="/api/transcript", tags=["transcrip
 app.include_router(playlist.router, prefix="/api/playlist", tags=["playlist"])
 app.include_router(analysis.router)  # Already has /api/analysis prefix
 app.include_router(cache.router)  # Already has /api/cache prefix
+app.include_router(content.router)  # Already has /api/content prefix
 
 
 @app.get("/health")

@@ -16,10 +16,20 @@ import type {
   ManipulationToolkit,
   DimensionDefinition,
   ManipulationTechnique,
-  ContentSummaryResult
+  ContentSummaryResult,
+  DiscoveryResult,
+  DiscoveryRequest,
+  ContentSourceType,
+  UnifiedContent,
+  ContentExtractionRequest,
+  ContentUploadResponse
 } from '@/types'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+// Use relative URLs (empty string) when NEXT_PUBLIC_API_URL is not set or empty
+// This allows the app to work behind a reverse proxy (Caddy/nginx)
+const API_BASE = process.env.NEXT_PUBLIC_API_URL !== undefined && process.env.NEXT_PUBLIC_API_URL !== ''
+  ? process.env.NEXT_PUBLIC_API_URL
+  : (typeof window !== 'undefined' ? '' : 'http://localhost:8000')
 
 export const api = axios.create({
   baseURL: API_BASE,
@@ -135,6 +145,7 @@ export interface LibraryStats {
   total: number
   with_summary: number
   with_analysis: number
+  with_trust: number
 }
 
 export const cacheApi = {
@@ -464,5 +475,129 @@ export const analysisApi = {
       video_url: options?.videoUrl
     })
     return response.data
+  },
+
+  /**
+   * Discovery Mode analysis (~30s) - Kinoshita Pattern for cross-domain knowledge transfer
+   * Extracts problems, techniques, cross-domain applications, and research trail
+   */
+  analyzeDiscovery: async (
+    options: {
+      source?: string
+      sourceType?: ContentSourceType
+      videoId?: string
+      focusDomains?: string[]
+      maxApplications?: number
+    }
+  ): Promise<DiscoveryResult> => {
+    const response = await api.post<DiscoveryResult>('/api/analysis/discovery', {
+      source: options.source,
+      source_type: options.sourceType,
+      video_id: options.videoId,
+      focus_domains: options.focusDomains,
+      max_applications: options.maxApplications ?? 5
+    })
+    return response.data
+  }
+}
+
+/**
+ * Content extraction API for universal content ingestion
+ */
+export const contentApi = {
+  /**
+   * Extract content from a URL or text source
+   */
+  extract: async (
+    source: string,
+    options?: {
+      sourceType?: ContentSourceType
+      title?: string
+      author?: string
+    }
+  ): Promise<UnifiedContent> => {
+    const response = await api.post<UnifiedContent>('/api/content/extract', {
+      source,
+      source_type: options?.sourceType,
+      title: options?.title,
+      author: options?.author
+    })
+    return response.data
+  },
+
+  /**
+   * Upload a file for content extraction
+   */
+  upload: async (
+    file: File,
+    options?: {
+      title?: string
+      author?: string
+    }
+  ): Promise<ContentUploadResponse> => {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const params = new URLSearchParams()
+    if (options?.title) params.set('title', options.title)
+    if (options?.author) params.set('author', options.author)
+
+    const url = params.toString()
+      ? `/api/content/upload?${params}`
+      : '/api/content/upload'
+
+    const response = await api.post<ContentUploadResponse>(url, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    return response.data
+  },
+
+  /**
+   * Detect content type without extracting
+   */
+  detect: async (source: string): Promise<{
+    source_type: ContentSourceType
+    normalized_source: string
+    video_id: string | null
+    is_youtube: boolean
+    is_url: boolean
+    is_file: boolean
+  }> => {
+    const response = await api.get('/api/content/detect', {
+      params: { source }
+    })
+    return response.data
+  }
+}
+
+/**
+ * Discovery cache API for storing discovery results
+ */
+export const discoveryCacheApi = {
+  /**
+   * Save discovery analysis results
+   */
+  saveDiscovery: async (videoId: string, discoveryResult: DiscoveryResult): Promise<void> => {
+    await api.post('/api/cache/discovery', {
+      video_id: videoId,
+      discovery_result: discoveryResult
+    })
+  },
+
+  /**
+   * Get cached discovery results for a video
+   */
+  getDiscovery: async (videoId: string): Promise<{ discovery: DiscoveryResult; discovery_date: string } | null> => {
+    try {
+      const response = await api.get(`/api/cache/discovery/${videoId}`)
+      return response.data
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return null
+      }
+      throw error
+    }
   }
 }

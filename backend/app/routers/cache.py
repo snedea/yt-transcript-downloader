@@ -32,6 +32,11 @@ class SaveManipulationRequest(BaseModel):
     manipulation_result: Dict[str, Any]
 
 
+class SaveDiscoveryRequest(BaseModel):
+    video_id: str
+    discovery_result: Dict[str, Any]
+
+
 @router.get("/transcript/{video_id}")
 async def get_cached_transcript(video_id: str):
     """
@@ -70,7 +75,11 @@ async def get_cached_transcript(video_id: str):
         # Content summary
         "summary_result": result.get("summary_result"),
         "summary_date": result.get("summary_date"),
-        "has_summary": result.get("summary_result") is not None
+        "has_summary": result.get("summary_result") is not None,
+        # Discovery analysis (Kinoshita Pattern)
+        "discovery_result": result.get("discovery_result"),
+        "discovery_date": result.get("discovery_date"),
+        "has_discovery": result.get("discovery_result") is not None
     }
 
 
@@ -354,7 +363,47 @@ async def get_library_stats():
     return {
         "total": stats["total"],
         "with_summary": stats["with_summary"],
-        "with_analysis": stats["with_analysis"]
+        "with_analysis": stats["with_analysis"],
+        "with_trust": stats.get("with_trust", 0),
+        "with_discovery": stats.get("with_discovery", 0)
+    }
+
+
+@router.post("/discovery")
+async def save_discovery(request: SaveDiscoveryRequest):
+    """
+    Save discovery (Kinoshita Pattern) analysis results for a video.
+
+    The video must already exist in the cache (transcript must be saved first).
+    """
+    cache = get_cache_service()
+    success = cache.save_discovery(request.video_id, request.discovery_result)
+
+    if not success:
+        raise HTTPException(
+            status_code=404,
+            detail="Transcript not found in cache. Save the transcript first."
+        )
+
+    return {"saved": True, "video_id": request.video_id}
+
+
+@router.get("/discovery/{video_id}")
+async def get_cached_discovery(video_id: str):
+    """
+    Get cached discovery (Kinoshita Pattern) analysis for a video.
+    """
+    cache = get_cache_service()
+    result = cache.get_discovery(video_id)
+
+    if not result:
+        raise HTTPException(status_code=404, detail="Discovery analysis not found in cache")
+
+    return {
+        "video_id": video_id,
+        "discovery": result["discovery"],
+        "discovery_date": result["discovery_date"],
+        "cached": True
     }
 
 
