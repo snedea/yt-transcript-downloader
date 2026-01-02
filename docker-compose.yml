@@ -30,7 +30,7 @@ services:
       - LLM_PROVIDER=${LLM_PROVIDER:-auto}  # auto (claude first, then openai), claude, or openai
     volumes:
       - transcript_cache:/app/data
-      - ~/.claude:/home/appuser/.claude:ro  # Mount Claude credentials for CLI
+      - ~/.claude:/home/appuser/.claude  # Mount Claude credentials for CLI (needs write for debug logs)
     restart: always
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
