@@ -1,26 +1,33 @@
 """
 Health Analyzer Service
 
-Uses Claude CLI with vision capabilities to analyze video frames for
+Uses Claude CLI or OpenAI GPT-4o with vision capabilities to analyze video frames for
 observable health-related features. This is an EDUCATIONAL tool only.
+
+Supports two providers (like Discovery):
+1. Claude CLI - Primary (uses existing subscription)
+2. OpenAI GPT-4o - Fallback with vision support
 """
 
+import base64
 import json
 import logging
+import os
 import subprocess
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Optional
 import uuid
 
+from openai import OpenAI
+
+from app.config import settings
 from app.models.health_observation import (
     BodyRegion,
     HealthObservation,
     HealthObservationResult,
     FrameAnalysis,
-    ExtractedFrame,
-    HumanDetectionResult,
     ObservationSeverity,
     CLAUDE_HEALTH_PROMPT,
     HEALTH_DISCLAIMER,
@@ -32,17 +39,47 @@ from app.services.human_detector import HumanDetector
 
 logger = logging.getLogger(__name__)
 
+# Provider preference: "claude", "openai", or "auto" (claude first, then openai)
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "auto")
+
 
 class HealthAnalyzer:
-    """Analyzes video frames for health-related observations using Claude vision."""
+    """Analyzes video frames for health-related observations using vision AI."""
 
     def __init__(self):
         self.claude_path = shutil.which("claude")
         self.frame_extractor = FrameExtractor()
 
+        # Initialize OpenAI client if API key is available
+        if settings.OPENAI_API_KEY:
+            self.openai_client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        else:
+            self.openai_client = None
+
+        self.provider = LLM_PROVIDER
+        logger.info(f"Health analyzer initialized with provider preference: {self.provider}")
+
     def is_available(self) -> bool:
-        """Check if Claude CLI is available."""
-        return self.claude_path is not None
+        """Check if any vision provider is available."""
+        if self.provider == "claude":
+            return self.claude_path is not None
+        elif self.provider == "openai":
+            return self.openai_client is not None
+        else:  # auto
+            return self.claude_path is not None or self.openai_client is not None
+
+    def _get_active_provider(self) -> str:
+        """Determine which provider to use."""
+        if self.provider == "claude":
+            return "claude" if self.claude_path else None
+        elif self.provider == "openai":
+            return "openai" if self.openai_client else None
+        else:  # auto - try claude first, then openai
+            if self.claude_path:
+                return "claude"
+            if self.openai_client:
+                return "openai"
+            return None
 
     async def analyze_video(
         self,
@@ -53,15 +90,6 @@ class HealthAnalyzer:
     ) -> HealthObservationResult:
         """
         Full pipeline: extract frames -> detect humans -> analyze -> cleanup.
-
-        Args:
-            video_id: YouTube video ID
-            video_title: Video title for context
-            interval_seconds: Seconds between frame extractions
-            max_frames: Maximum frames to analyze
-
-        Returns:
-            HealthObservationResult with all observations
         """
         start_time = datetime.now()
         video_dir = None
@@ -97,14 +125,24 @@ class HealthAnalyzer:
                     note="No human presence detected in video frames"
                 )
 
-            # Step 3: Analyze each frame with Claude vision
-            logger.info("Analyzing frames with Claude vision...")
+            # Step 3: Analyze each frame with vision AI
+            provider = self._get_active_provider()
+            if not provider:
+                return self._empty_result(
+                    video_id, video_title, start_time,
+                    frames_extracted=frames_extracted,
+                    frames_with_humans=frames_with_humans,
+                    note="No vision provider available (Claude CLI or OpenAI API key required)"
+                )
+
+            logger.info(f"Analyzing frames with {provider} vision...")
             for frame, detection in human_frames:
                 frame_analysis = await self._analyze_frame(
                     frame_path=Path(frame.frame_path),
                     timestamp=frame.timestamp,
                     body_regions=detection.body_regions,
-                    video_title=video_title
+                    video_title=video_title,
+                    provider=provider
                 )
                 if frame_analysis:
                     frame_analyses.append(frame_analysis)
@@ -115,11 +153,7 @@ class HealthAnalyzer:
 
             # Step 4: Build result
             duration = (datetime.now() - start_time).total_seconds()
-
-            # Group observations by body region
             observations_by_region = group_observations_by_region(all_observations)
-
-            # Generate summary
             summary = self._generate_summary(all_observations, frames_analyzed)
 
             return HealthObservationResult(
@@ -137,11 +171,11 @@ class HealthAnalyzer:
                 disclaimer=HEALTH_DISCLAIMER,
                 analysis_duration_seconds=duration,
                 analyzed_at=datetime.now().isoformat(),
-                interval_seconds=interval_seconds
+                interval_seconds=interval_seconds,
+                model_used="gpt-4o" if provider == "openai" else "claude-sonnet-4-20250514"
             )
 
         finally:
-            # Always cleanup temp files
             if video_dir:
                 self.frame_extractor.cleanup(video_dir)
                 logger.info("Cleaned up temporary files")
@@ -151,19 +185,36 @@ class HealthAnalyzer:
         frame_path: Path,
         timestamp: float,
         body_regions: List[BodyRegion],
+        video_title: str,
+        provider: str
+    ) -> Optional[FrameAnalysis]:
+        """Analyze a single frame using the specified vision provider."""
+
+        # Try primary provider, fall back if it fails
+        if provider == "claude":
+            result = await self._analyze_frame_claude(frame_path, timestamp, body_regions, video_title)
+            if result:
+                return result
+            # Fall back to OpenAI if in auto mode
+            if self.provider == "auto" and self.openai_client:
+                logger.info("Claude failed, falling back to OpenAI...")
+                return await self._analyze_frame_openai(frame_path, timestamp, body_regions, video_title)
+            return None
+        else:
+            return await self._analyze_frame_openai(frame_path, timestamp, body_regions, video_title)
+
+    async def _analyze_frame_claude(
+        self,
+        frame_path: Path,
+        timestamp: float,
+        body_regions: List[BodyRegion],
         video_title: str
     ) -> Optional[FrameAnalysis]:
-        """
-        Analyze a single frame using Claude vision.
-
-        Uses Claude CLI with file path - Claude Code can read images directly.
-        """
+        """Analyze frame using Claude CLI."""
         if not self.claude_path:
-            logger.error("Claude CLI not available")
             return None
 
         try:
-            # Format the prompt with absolute file path for Claude to read
             regions_str = ", ".join(r.value for r in body_regions) if body_regions else "unknown"
             formatted_time = format_timestamp(timestamp)
 
@@ -174,8 +225,6 @@ class HealthAnalyzer:
                 video_title=video_title or "Unknown"
             )
 
-            # Instruct Claude to read the image file directly
-            # Claude Code's Read tool can handle image files natively
             full_prompt = f"""Please analyze the image at this path: {frame_path}
 
 Read the image file and then provide your analysis.
@@ -186,19 +235,19 @@ Read the image file and then provide your analysis.
                 self.claude_path,
                 "--print",
                 "--permission-mode", "bypassPermissions",
-                "--model", "claude-sonnet-4-20250514",  # Sonnet for vision (faster, cheaper)
-                "--max-turns", "3",  # Allow turns for: read image -> analyze -> respond
-                "--allowedTools", "Read",  # Only allow Read tool for image access
+                "--model", "claude-sonnet-4-20250514",
+                "--max-turns", "3",
+                "--allowedTools", "Read",
             ]
 
-            logger.debug(f"Analyzing frame at {formatted_time}...")
+            logger.debug(f"Analyzing frame at {formatted_time} with Claude...")
 
             result = subprocess.run(
                 cmd,
                 input=full_prompt,
                 capture_output=True,
                 text=True,
-                timeout=180  # 3 minute timeout per frame (needs to read + analyze)
+                timeout=180
             )
 
             if result.returncode != 0:
@@ -206,53 +255,122 @@ Read the image file and then provide your analysis.
                 return None
 
             output = result.stdout.strip()
-
-            # Parse JSON response
             response = self._parse_json_response(output)
             if not response:
                 return None
 
-            # Convert to FrameAnalysis
-            frame_id = str(uuid.uuid4())[:8]
-            observations = []
-
-            for obs_data in response.get("observations", []):
-                try:
-                    obs_id = str(uuid.uuid4())[:8]
-                    observations.append(HealthObservation(
-                        observation_id=obs_id,
-                        timestamp=timestamp,
-                        body_region=BodyRegion(obs_data.get("body_region", "other")),
-                        observation=obs_data.get("observation", ""),
-                        reasoning=obs_data.get("reasoning", ""),
-                        confidence=float(obs_data.get("confidence", 0.5)),
-                        limitations=obs_data.get("limitations", []),
-                        severity=ObservationSeverity(obs_data.get("severity", "informational")),
-                        related_conditions=obs_data.get("related_conditions", []),
-                        references=obs_data.get("references", [])
-                    ))
-                except Exception as e:
-                    logger.warning(f"Failed to parse observation: {e}")
-
-            return FrameAnalysis(
-                frame_id=frame_id,
-                timestamp=timestamp,
-                humans_detected=1,
-                body_regions_visible=body_regions,
-                observations=observations,
-                image_quality_notes=response.get("image_quality_notes", [])
-            )
+            return self._build_frame_analysis(response, timestamp, body_regions)
 
         except subprocess.TimeoutExpired:
-            logger.error(f"Frame analysis timed out for {frame_path}")
+            logger.error(f"Claude frame analysis timed out for {frame_path}")
             return None
         except Exception as e:
-            logger.error(f"Error analyzing frame: {e}")
+            logger.error(f"Error analyzing frame with Claude: {e}")
             return None
 
+    async def _analyze_frame_openai(
+        self,
+        frame_path: Path,
+        timestamp: float,
+        body_regions: List[BodyRegion],
+        video_title: str
+    ) -> Optional[FrameAnalysis]:
+        """Analyze frame using OpenAI GPT-4o vision."""
+        if not self.openai_client:
+            return None
+
+        try:
+            regions_str = ", ".join(r.value for r in body_regions) if body_regions else "unknown"
+            formatted_time = format_timestamp(timestamp)
+
+            prompt = CLAUDE_HEALTH_PROMPT.format(
+                timestamp=timestamp,
+                formatted_time=formatted_time,
+                regions=regions_str,
+                video_title=video_title or "Unknown"
+            )
+
+            # Read and encode image as base64
+            with open(frame_path, "rb") as f:
+                image_data = base64.b64encode(f.read()).decode("utf-8")
+
+            logger.debug(f"Analyzing frame at {formatted_time} with OpenAI GPT-4o...")
+
+            response = self.openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": prompt
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{image_data}",
+                                    "detail": "high"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                max_tokens=2000,
+                temperature=0.3,
+                response_format={"type": "json_object"}
+            )
+
+            output = response.choices[0].message.content
+            parsed = self._parse_json_response(output)
+            if not parsed:
+                return None
+
+            return self._build_frame_analysis(parsed, timestamp, body_regions)
+
+        except Exception as e:
+            logger.error(f"Error analyzing frame with OpenAI: {e}")
+            return None
+
+    def _build_frame_analysis(
+        self,
+        response: dict,
+        timestamp: float,
+        body_regions: List[BodyRegion]
+    ) -> FrameAnalysis:
+        """Convert parsed response to FrameAnalysis."""
+        frame_id = str(uuid.uuid4())[:8]
+        observations = []
+
+        for obs_data in response.get("observations", []):
+            try:
+                obs_id = str(uuid.uuid4())[:8]
+                observations.append(HealthObservation(
+                    observation_id=obs_id,
+                    timestamp=timestamp,
+                    body_region=BodyRegion(obs_data.get("body_region", "other")),
+                    observation=obs_data.get("observation", ""),
+                    reasoning=obs_data.get("reasoning", ""),
+                    confidence=float(obs_data.get("confidence", 0.5)),
+                    limitations=obs_data.get("limitations", []),
+                    severity=ObservationSeverity(obs_data.get("severity", "informational")),
+                    related_conditions=obs_data.get("related_conditions", []),
+                    references=obs_data.get("references", [])
+                ))
+            except Exception as e:
+                logger.warning(f"Failed to parse observation: {e}")
+
+        return FrameAnalysis(
+            frame_id=frame_id,
+            timestamp=timestamp,
+            humans_detected=1,
+            body_regions_visible=body_regions,
+            observations=observations,
+            image_quality_notes=response.get("image_quality_notes", [])
+        )
+
     def _parse_json_response(self, output: str) -> Optional[dict]:
-        """Parse JSON from Claude's response, handling markdown wrappers."""
-        # Remove markdown code blocks if present
+        """Parse JSON from response, handling markdown wrappers."""
         if output.startswith("```json"):
             output = output[7:]
         if output.startswith("```"):
@@ -274,6 +392,7 @@ Read the image file and then provide your analysis.
         video_title: str,
         start_time: datetime,
         frames_extracted: int = 0,
+        frames_with_humans: int = 0,
         note: str = ""
     ) -> HealthObservationResult:
         """Create an empty result for when no analysis could be performed."""
@@ -283,7 +402,7 @@ Read the image file and then provide your analysis.
             video_title=video_title,
             video_url=f"https://www.youtube.com/watch?v={video_id}",
             frames_extracted=frames_extracted,
-            frames_with_humans=0,
+            frames_with_humans=frames_with_humans,
             frames_analyzed=0,
             observations=[],
             summary=note or "No observations could be made from this video.",
@@ -304,7 +423,6 @@ Read the image file and then provide your analysis.
         if not observations:
             return f"Analyzed {frames_analyzed} frames. No notable health-related observations were found."
 
-        # Count by severity
         severity_counts = {s: 0 for s in ObservationSeverity}
         region_counts: dict = {}
 
@@ -313,7 +431,6 @@ Read the image file and then provide your analysis.
             region = obs.body_region.value
             region_counts[region] = region_counts.get(region, 0) + 1
 
-        # Build summary
         parts = [f"Analyzed {frames_analyzed} frames with {len(observations)} observations."]
 
         if severity_counts[ObservationSeverity.CONSIDER_CHECKUP] > 0:
@@ -323,7 +440,6 @@ Read the image file and then provide your analysis.
 
         regions_mentioned = ", ".join(f"{k} ({v})" for k, v in sorted(region_counts.items(), key=lambda x: -x[1]))
         parts.append(f"Body regions observed: {regions_mentioned}.")
-
         parts.append("Remember: This is an educational tool only, not medical advice.")
 
         return " ".join(parts)
