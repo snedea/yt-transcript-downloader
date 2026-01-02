@@ -3,11 +3,11 @@
 import React, { useState, useEffect } from 'react'
 import { cacheApi, LibraryStats } from '@/services/api'
 
-type ViewType = 'library' | 'new'
+type ViewType = 'library' | 'new' | 'detail'
 
 interface SidebarProps {
   currentView: ViewType
-  onViewChange: (view: ViewType) => void
+  onViewChange: (view: 'library' | 'new') => void  // Only allow switching to library or new
   collapsed?: boolean
   onToggleCollapse?: () => void
 }
@@ -86,7 +86,7 @@ export function Sidebar({
             className={`
               w-full flex items-center gap-3 px-3 py-2.5 rounded-lg
               transition-colors text-left
-              ${currentView === item.id
+              ${(currentView === item.id || (item.id === 'library' && currentView === 'detail'))
                 ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-medium'
                 : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
               }
