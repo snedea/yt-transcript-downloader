@@ -109,6 +109,7 @@ export interface LibraryItem {
   has_summary: boolean
   has_manipulation: boolean  // trust analysis v2.0
   has_rhetorical: boolean    // rhetorical analysis v1.0
+  has_discovery: boolean     // discovery analysis (Kinoshita pattern)
   analysis_type: 'manipulation' | 'rhetorical' | 'both' | null
   content_type: string | null
   keywords: string[]

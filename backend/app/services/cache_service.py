@@ -324,7 +324,10 @@ class TranscriptCacheService:
                 SELECT video_id, video_title, author, is_cleaned,
                        created_at, last_accessed, access_count,
                        CASE WHEN analysis_result IS NOT NULL THEN 1 ELSE 0 END as has_analysis,
-                       CASE WHEN summary_result IS NOT NULL THEN 1 ELSE 0 END as has_summary
+                       CASE WHEN summary_result IS NOT NULL THEN 1 ELSE 0 END as has_summary,
+                       CASE WHEN manipulation_result IS NOT NULL THEN 1 ELSE 0 END as has_manipulation,
+                       CASE WHEN analysis_result IS NOT NULL THEN 1 ELSE 0 END as has_rhetorical,
+                       CASE WHEN discovery_result IS NOT NULL THEN 1 ELSE 0 END as has_discovery
                 FROM transcripts
                 ORDER BY last_accessed DESC
                 LIMIT ? OFFSET ?
@@ -338,6 +341,9 @@ class TranscriptCacheService:
                 item['is_cleaned'] = bool(item.get('is_cleaned', 0))
                 item['has_analysis'] = bool(item.get('has_analysis', 0))
                 item['has_summary'] = bool(item.get('has_summary', 0))
+                item['has_manipulation'] = bool(item.get('has_manipulation', 0))
+                item['has_rhetorical'] = bool(item.get('has_rhetorical', 0))
+                item['has_discovery'] = bool(item.get('has_discovery', 0))
                 items.append(item)
 
             return items
@@ -829,6 +835,7 @@ class TranscriptCacheService:
                     CASE WHEN summary_result IS NOT NULL THEN 1 ELSE 0 END as has_summary,
                     CASE WHEN manipulation_result IS NOT NULL THEN 1 ELSE 0 END as has_manipulation,
                     CASE WHEN analysis_result IS NOT NULL THEN 1 ELSE 0 END as has_rhetorical,
+                    CASE WHEN discovery_result IS NOT NULL THEN 1 ELSE 0 END as has_discovery,
                     CASE
                         WHEN manipulation_result IS NOT NULL AND analysis_result IS NOT NULL THEN 'both'
                         WHEN manipulation_result IS NOT NULL THEN 'manipulation'
@@ -855,6 +862,7 @@ class TranscriptCacheService:
                 item['has_summary'] = bool(item.get('has_summary', 0))
                 item['has_manipulation'] = bool(item.get('has_manipulation', 0))
                 item['has_rhetorical'] = bool(item.get('has_rhetorical', 0))
+                item['has_discovery'] = bool(item.get('has_discovery', 0))
                 # Parse keywords JSON
                 if item.get('keywords'):
                     try:

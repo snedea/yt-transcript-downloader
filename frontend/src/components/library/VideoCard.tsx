@@ -68,6 +68,12 @@ export function VideoCard({ item, onClick }: VideoCardProps) {
               Rhetoric
             </span>
           )}
+          {/* Show Discovery badge if discovery analysis exists */}
+          {item.has_discovery && (
+            <span className="bg-amber-500 text-white text-xs px-1.5 py-0.5 rounded font-medium">
+              Discovery
+            </span>
+          )}
         </div>
 
         {/* Content type badge - bottom left */}
