@@ -66,6 +66,11 @@ export function VideoCard({ item, onClick }: VideoCardProps) {
               Rhetoric
             </span>
           )}
+          {item.has_analysis && !item.analysis_type && (
+            <span className="bg-gray-500 text-white text-xs px-1.5 py-0.5 rounded font-medium">
+              Analyzed
+            </span>
+          )}
         </div>
 
         {/* Content type badge - bottom left */}
