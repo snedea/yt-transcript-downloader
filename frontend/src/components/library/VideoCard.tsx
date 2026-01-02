@@ -56,9 +56,14 @@ export function VideoCard({ item, onClick }: VideoCardProps) {
               Summary
             </span>
           )}
-          {item.has_analysis && (
+          {item.analysis_type === 'manipulation' && (
             <span className="bg-indigo-500 text-white text-xs px-1.5 py-0.5 rounded font-medium">
-              Analyzed
+              Trust
+            </span>
+          )}
+          {item.analysis_type === 'rhetorical' && (
+            <span className="bg-purple-500 text-white text-xs px-1.5 py-0.5 rounded font-medium">
+              Rhetoric
             </span>
           )}
         </div>

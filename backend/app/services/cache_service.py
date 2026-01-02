@@ -651,6 +651,11 @@ class TranscriptCacheService:
                     access_count,
                     CASE WHEN analysis_result IS NOT NULL THEN 1 ELSE 0 END as has_analysis,
                     CASE WHEN summary_result IS NOT NULL THEN 1 ELSE 0 END as has_summary,
+                    CASE
+                        WHEN json_extract(analysis_result, '$.dimension_scores') IS NOT NULL THEN 'manipulation'
+                        WHEN analysis_result IS NOT NULL THEN 'rhetorical'
+                        ELSE NULL
+                    END as analysis_type,
                     json_extract(summary_result, '$.content_type') as content_type,
                     json_extract(summary_result, '$.keywords') as keywords,
                     json_extract(summary_result, '$.tldr') as tldr

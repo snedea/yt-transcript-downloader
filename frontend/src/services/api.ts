@@ -91,6 +91,7 @@ export interface LibraryItem {
   is_cleaned: boolean
   has_analysis: boolean
   has_summary: boolean
+  analysis_type: 'manipulation' | 'rhetorical' | null
   content_type: string | null
   keywords: string[]
   tldr: string | null
