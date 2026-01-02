@@ -4,10 +4,15 @@ Discovery Mode analysis service.
 Implements the "Kinoshita Pattern" for cross-domain knowledge transfer:
 Extracts problems, techniques, cross-domain applications, research trail,
 and experiment ideas from any content source.
+
+Supports two LLM providers:
+1. Claude (via CLI) - Primary, uses existing subscription (free)
+2. OpenAI GPT-4o - Fallback if Claude unavailable
 """
 
 import json
 import logging
+import os
 import time
 import uuid
 from typing import Dict, Any, Optional, List
@@ -24,8 +29,12 @@ from app.models.discovery import (
     ExperimentIdea,
     DiscoveryResult,
 )
+from app.services.claude_provider import get_claude_provider, LocalClaudeProvider
 
 logger = logging.getLogger(__name__)
+
+# Provider preference: "claude" (default), "openai", or "auto" (claude first, then openai)
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "auto")
 
 
 # JSON Schema for GPT-4o structured output
@@ -128,15 +137,45 @@ class DiscoveryService:
     """Service for Kinoshita Pattern discovery analysis."""
 
     def __init__(self):
-        """Initialize with OpenAI client."""
+        """Initialize with available LLM providers."""
+        # Claude provider (uses CLI, rides subscription)
+        self.claude_provider = get_claude_provider()
+
+        # OpenAI provider (requires API key)
         if settings.OPENAI_API_KEY:
-            self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
+            self.openai_client = OpenAI(api_key=settings.OPENAI_API_KEY)
         else:
-            self.client = None
+            self.openai_client = None
+
+        # Determine which provider to use
+        self.provider = LLM_PROVIDER
+        logger.info(f"Discovery service initialized with provider preference: {self.provider}")
 
     def is_available(self) -> bool:
-        """Check if the service is configured."""
-        return self.client is not None
+        """Check if any LLM provider is available."""
+        if self.provider == "claude":
+            return self.claude_provider.is_available()
+        elif self.provider == "openai":
+            return self.openai_client is not None
+        else:  # auto
+            return self.claude_provider.is_available() or self.openai_client is not None
+
+    def _get_active_provider(self) -> tuple[str, Any]:
+        """Determine which provider to use based on availability."""
+        if self.provider == "claude":
+            if self.claude_provider.is_available():
+                return "claude", self.claude_provider
+            return None, None
+        elif self.provider == "openai":
+            if self.openai_client:
+                return "openai", self.openai_client
+            return None, None
+        else:  # auto - try claude first, then openai
+            if self.claude_provider.is_available():
+                return "claude", self.claude_provider
+            if self.openai_client:
+                return "openai", self.openai_client
+            return None, None
 
     async def analyze(
         self,
@@ -155,10 +194,12 @@ class DiscoveryService:
         Returns:
             Dictionary with success status and DiscoveryResult or error
         """
-        if not self.client:
+        provider_name, provider = self._get_active_provider()
+
+        if not provider:
             return {
                 "success": False,
-                "error": "OpenAI API key not configured"
+                "error": "No LLM provider available. Configure Claude CLI or set OPENAI_API_KEY."
             }
 
         start_time = time.time()
@@ -167,14 +208,104 @@ class DiscoveryService:
         system_prompt = self._build_system_prompt(focus_domains, max_applications)
         user_prompt = self._build_user_prompt(content)
 
+        logger.info(f"Running discovery analysis with {provider_name} provider")
+
+        if provider_name == "claude":
+            return await self._analyze_with_claude(
+                system_prompt, user_prompt, content, start_time
+            )
+        else:
+            return await self._analyze_with_openai(
+                system_prompt, user_prompt, content, start_time
+            )
+
+    async def _analyze_with_claude(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        content: UnifiedContent,
+        start_time: float
+    ) -> Dict[str, Any]:
+        """Run analysis using Claude CLI."""
         try:
-            response = self.client.chat.completions.create(
+            result = self.claude_provider.generate(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                model="claude-opus-4-5-20251101",
+                response_format="json"
+            )
+
+            if not result["success"]:
+                logger.error(f"Claude analysis failed: {result['error']}")
+                # Try fallback to OpenAI if in auto mode
+                if self.provider == "auto" and self.openai_client:
+                    logger.info("Falling back to OpenAI...")
+                    return await self._analyze_with_openai(
+                        system_prompt, user_prompt, content, start_time
+                    )
+                return {
+                    "success": False,
+                    "error": f"Claude analysis failed: {result['error']}"
+                }
+
+            analysis_text = result["content"]
+            tokens_used = result["tokens_used"]
+
+            try:
+                raw_data = json.loads(analysis_text)
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse Claude response: {e}")
+                return {
+                    "success": False,
+                    "error": f"Failed to parse analysis response: {str(e)}"
+                }
+
+            # Convert raw data to DiscoveryResult
+            discovery_result = self._parse_result(
+                raw_data=raw_data,
+                content=content,
+                tokens_used=tokens_used,
+                duration=time.time() - start_time
+            )
+
+            logger.info(f"Claude analysis completed in {time.time() - start_time:.1f}s")
+
+            return {
+                "success": True,
+                "result": discovery_result,
+                "tokens_used": tokens_used,
+                "provider": "claude"
+            }
+
+        except Exception as e:
+            logger.error(f"Unexpected error during Claude analysis: {e}")
+            # Try fallback to OpenAI if in auto mode
+            if self.provider == "auto" and self.openai_client:
+                logger.info("Falling back to OpenAI due to error...")
+                return await self._analyze_with_openai(
+                    system_prompt, user_prompt, content, start_time
+                )
+            return {
+                "success": False,
+                "error": f"Claude analysis failed: {str(e)}"
+            }
+
+    async def _analyze_with_openai(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        content: UnifiedContent,
+        start_time: float
+    ) -> Dict[str, Any]:
+        """Run analysis using OpenAI GPT-4o."""
+        try:
+            response = self.openai_client.chat.completions.create(
                 model="gpt-4o",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.4,  # Slightly creative for cross-domain suggestions
+                temperature=0.4,
                 max_tokens=8000,
                 response_format={"type": "json_object"}
             )
@@ -199,10 +330,13 @@ class DiscoveryService:
                 duration=time.time() - start_time
             )
 
+            logger.info(f"OpenAI analysis completed in {time.time() - start_time:.1f}s")
+
             return {
                 "success": True,
                 "result": discovery_result,
-                "tokens_used": tokens_used
+                "tokens_used": tokens_used,
+                "provider": "openai"
             }
 
         except AuthenticationError:

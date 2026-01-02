@@ -27,8 +27,10 @@ services:
       - ENVIRONMENT=production
       - CORS_ORIGINS=http://localhost:3000,http://yt.llam.ai,https://yt.llam.ai,http://100.70.254.21
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - LLM_PROVIDER=${LLM_PROVIDER:-auto}  # auto (claude first, then openai), claude, or openai
     volumes:
       - transcript_cache:/app/data
+      - ~/.claude:/home/appuser/.claude:ro  # Mount Claude credentials for CLI
     restart: always
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
