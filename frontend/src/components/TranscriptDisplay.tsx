@@ -104,22 +104,32 @@ export default function TranscriptDisplay({
     setShowAnalysis(false)
   }, [videoId, resetRhetorical, resetManipulation, resetSummary])
 
-  // Load cached analysis after reset
+  // Load ALL cached analyses after reset (so user can switch between them)
   useEffect(() => {
-    // Load cached summary if available (prioritize summary)
+    let hasAnyCached = false
+    let defaultType: AnalysisType = 'summary'
+
+    // Load cached summary if available
     if (cachedSummary) {
-      setAnalysisType('summary')
       setSummaryFromCache(cachedSummary)
-      setShowAnalysis(true)
-    } else if (cachedAnalysis) {
-      // Check if it's a v2.0 analysis (has dimension_scores)
+      hasAnyCached = true
+      defaultType = 'summary'
+    }
+
+    // Load cached analysis (manipulation or rhetorical)
+    if (cachedAnalysis) {
       if ('dimension_scores' in cachedAnalysis) {
-        setAnalysisType('manipulation')
         setManipulationFromCache(cachedAnalysis as any)
+        if (!cachedSummary) defaultType = 'manipulation'
       } else {
-        setAnalysisType('rhetorical')
         setRhetoricalFromCache(cachedAnalysis)
+        if (!cachedSummary) defaultType = 'rhetorical'
       }
+      hasAnyCached = true
+    }
+
+    if (hasAnyCached) {
+      setAnalysisType(defaultType)
       setShowAnalysis(true)
     }
   }, [videoId, cachedAnalysis, cachedSummary, setRhetoricalFromCache, setManipulationFromCache, setSummaryFromCache])
@@ -267,34 +277,49 @@ export default function TranscriptDisplay({
             <div className="flex items-center gap-4 mb-4">
               <div className="flex rounded-lg bg-gray-100 dark:bg-gray-700 p-1">
                 <button
-                  onClick={() => { setAnalysisType('summary'); setShowModeSelector(false) }}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                  onClick={() => {
+                    setAnalysisType('summary')
+                    setShowModeSelector(false)
+                    if (summaryResult) setShowAnalysis(true)
+                  }}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all relative ${
                     analysisType === 'summary'
                       ? 'bg-white dark:bg-gray-600 text-emerald-600 dark:text-emerald-400 shadow-sm'
                       : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                   }`}
                 >
                   📋 Summary
+                  {summaryResult && <span className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full" />}
                 </button>
                 <button
-                  onClick={() => { setAnalysisType('manipulation'); setShowModeSelector(true) }}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                  onClick={() => {
+                    setAnalysisType('manipulation')
+                    setShowModeSelector(!manipulationResult)
+                    if (manipulationResult) setShowAnalysis(true)
+                  }}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all relative ${
                     analysisType === 'manipulation'
                       ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
                       : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                   }`}
                 >
                   🔬 Trust Analysis
+                  {manipulationResult && <span className="absolute -top-1 -right-1 w-2 h-2 bg-indigo-500 rounded-full" />}
                 </button>
                 <button
-                  onClick={() => { setAnalysisType('rhetorical'); setShowModeSelector(false) }}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                  onClick={() => {
+                    setAnalysisType('rhetorical')
+                    setShowModeSelector(false)
+                    if (rhetoricalResult) setShowAnalysis(true)
+                  }}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all relative ${
                     analysisType === 'rhetorical'
                       ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
                       : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                   }`}
                 >
                   🎭 Rhetoric
+                  {rhetoricalResult && <span className="absolute -top-1 -right-1 w-2 h-2 bg-purple-500 rounded-full" />}
                 </button>
               </div>
               <span className="text-xs text-gray-500 dark:text-gray-500">
@@ -475,8 +500,12 @@ export default function TranscriptDisplay({
         </div>
       )}
 
-      {/* Analysis Results */}
-      {showAnalysis && (rhetoricalResult || manipulationResult || summaryResult) && (
+      {/* Analysis Results - render based on selected analysisType */}
+      {showAnalysis && (
+        (analysisType === 'summary' && summaryResult) ||
+        (analysisType === 'manipulation' && manipulationResult) ||
+        (analysisType === 'rhetorical' && rhetoricalResult)
+      ) && (
         <div className="relative">
           <button
             onClick={handleCloseAnalysis}
@@ -488,8 +517,8 @@ export default function TranscriptDisplay({
             </svg>
           </button>
 
-          {/* Render appropriate analysis component */}
-          {summaryResult ? (
+          {/* Render analysis component matching the selected type */}
+          {analysisType === 'summary' && summaryResult && (
             <ContentSummary
               result={summaryResult}
               videoTitle={videoTitle}
@@ -500,7 +529,8 @@ export default function TranscriptDisplay({
               onReanalyze={handleReanalyzeSummary}
               isReanalyzing={summaryLoading}
             />
-          ) : manipulationResult ? (
+          )}
+          {analysisType === 'manipulation' && manipulationResult && (
             <ManipulationAnalysis
               result={manipulationResult}
               videoTitle={videoTitle}
@@ -508,7 +538,8 @@ export default function TranscriptDisplay({
               isCached={isManipulationCached}
               analysisDate={analysisDate}
             />
-          ) : rhetoricalResult ? (
+          )}
+          {analysisType === 'rhetorical' && rhetoricalResult && (
             <RhetoricalAnalysis
               result={rhetoricalResult}
               videoTitle={videoTitle}
@@ -516,7 +547,7 @@ export default function TranscriptDisplay({
               isCached={isRhetoricalCached}
               analysisDate={analysisDate}
             />
-          ) : null}
+          )}
         </div>
       )}
     </div>
