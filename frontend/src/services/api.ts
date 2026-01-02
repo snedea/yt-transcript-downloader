@@ -99,6 +99,14 @@ export interface CachedTranscript extends TranscriptResponse {
   summary_result?: ContentSummaryResult
   summary_date?: string
   has_summary: boolean
+  // Discovery analysis (Kinoshita Pattern)
+  discovery_result?: DiscoveryResult
+  discovery_date?: string
+  has_discovery: boolean
+  // Health observations (visual analysis)
+  health_observation_result?: HealthObservationResult
+  health_observation_date?: string
+  has_health: boolean
 }
 
 // Library/Search API types
