@@ -97,6 +97,7 @@ class FrameExtractor:
             "--merge-output-format", "mp4",
             "-o", str(output_path),
             "--no-playlist",
+            "--remote-components", "ejs:github",  # Required for YouTube JS challenges
             "--quiet",
             url
         ]
