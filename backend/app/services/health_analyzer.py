@@ -196,8 +196,9 @@ class HealthAnalyzer:
             if result:
                 return result
             # Fall back to OpenAI if in auto mode
+            logger.info(f"Claude failed for frame. self.provider={self.provider}, openai_client={self.openai_client is not None}")
             if self.provider == "auto" and self.openai_client:
-                logger.info("Claude failed, falling back to OpenAI...")
+                logger.info("Falling back to OpenAI GPT-4o vision...")
                 return await self._analyze_frame_openai(frame_path, timestamp, body_regions, video_title)
             return None
         else:
@@ -322,10 +323,13 @@ Read the image file and then provide your analysis.
             )
 
             output = response.choices[0].message.content
+            logger.info(f"OpenAI GPT-4o response for frame at {formatted_time}: {output[:500]}")
+
             parsed = self._parse_json_response(output)
             if not parsed:
                 return None
 
+            logger.info(f"Parsed observations count: {len(parsed.get('observations', []))}")
             return self._build_frame_analysis(parsed, timestamp, body_regions)
 
         except Exception as e:
