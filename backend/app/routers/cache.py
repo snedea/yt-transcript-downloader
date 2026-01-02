@@ -27,6 +27,11 @@ class SaveSummaryRequest(BaseModel):
     summary_result: Dict[str, Any]
 
 
+class SaveManipulationRequest(BaseModel):
+    video_id: str
+    manipulation_result: Dict[str, Any]
+
+
 @router.get("/transcript/{video_id}")
 async def get_cached_transcript(video_id: str):
     """
@@ -54,9 +59,15 @@ async def get_cached_transcript(video_id: str):
         "created_at": result["created_at"],
         "last_accessed": result["last_accessed"],
         "access_count": result["access_count"],
+        # Rhetorical analysis (v1.0 - 4 pillars)
         "analysis_result": result.get("analysis_result"),
         "analysis_date": result.get("analysis_date"),
         "has_analysis": result.get("analysis_result") is not None,
+        # Manipulation/Trust analysis (v2.0 - 5 dimensions)
+        "manipulation_result": result.get("manipulation_result"),
+        "manipulation_date": result.get("manipulation_date"),
+        "has_manipulation": result.get("manipulation_result") is not None,
+        # Content summary
         "summary_result": result.get("summary_result"),
         "summary_date": result.get("summary_date"),
         "has_summary": result.get("summary_result") is not None
@@ -217,6 +228,45 @@ async def get_cached_summary(video_id: str):
         "video_id": video_id,
         "summary": result["summary"],
         "summary_date": result["summary_date"],
+        "cached": True
+    }
+
+
+@router.post("/manipulation")
+async def save_manipulation(request: SaveManipulationRequest):
+    """
+    Save manipulation/trust analysis results for a video.
+
+    The video must already exist in the cache (transcript must be saved first).
+    This is separate from rhetorical analysis to allow both to coexist.
+    """
+    cache = get_cache_service()
+    success = cache.save_manipulation(request.video_id, request.manipulation_result)
+
+    if not success:
+        raise HTTPException(
+            status_code=404,
+            detail="Transcript not found in cache. Save the transcript first."
+        )
+
+    return {"saved": True, "video_id": request.video_id}
+
+
+@router.get("/manipulation/{video_id}")
+async def get_cached_manipulation(video_id: str):
+    """
+    Get cached manipulation/trust analysis for a video.
+    """
+    cache = get_cache_service()
+    result = cache.get_manipulation(video_id)
+
+    if not result:
+        raise HTTPException(status_code=404, detail="Manipulation analysis not found in cache")
+
+    return {
+        "video_id": video_id,
+        "manipulation": result["manipulation"],
+        "manipulation_date": result["manipulation_date"],
         "cached": True
     }
 

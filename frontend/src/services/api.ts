@@ -75,9 +75,15 @@ export interface CachedTranscript extends TranscriptResponse {
   created_at: string
   last_accessed: string
   access_count: number
+  // Rhetorical analysis (v1.0 - 4 pillars)
   analysis_result?: AnalysisResult
   analysis_date?: string
   has_analysis: boolean
+  // Manipulation/Trust analysis (v2.0 - 5 dimensions)
+  manipulation_result?: ManipulationAnalysisResult
+  manipulation_date?: string
+  has_manipulation: boolean
+  // Content summary
   summary_result?: ContentSummaryResult
   summary_date?: string
   has_summary: boolean
@@ -89,9 +95,11 @@ export interface LibraryItem {
   video_title: string
   author: string | null
   is_cleaned: boolean
-  has_analysis: boolean
+  has_analysis: boolean  // true if either rhetorical or manipulation exists
   has_summary: boolean
-  analysis_type: 'manipulation' | 'rhetorical' | null
+  has_manipulation: boolean  // trust analysis v2.0
+  has_rhetorical: boolean    // rhetorical analysis v1.0
+  analysis_type: 'manipulation' | 'rhetorical' | 'both' | null
   content_type: string | null
   keywords: string[]
   tldr: string | null
@@ -213,6 +221,37 @@ export const cacheApi = {
       video_id: videoId,
       summary_result: summaryResult
     })
+  },
+
+  /**
+   * Save manipulation/trust analysis results (separate from rhetorical)
+   */
+  saveManipulation: async (videoId: string, manipulationResult: ManipulationAnalysisResult): Promise<void> => {
+    console.log('[cacheApi.saveManipulation] Saving to:', `/api/cache/manipulation`, {
+      videoId,
+      resultScore: manipulationResult?.overall_score,
+      resultGrade: manipulationResult?.overall_grade
+    })
+    const response = await api.post('/api/cache/manipulation', {
+      video_id: videoId,
+      manipulation_result: manipulationResult
+    })
+    console.log('[cacheApi.saveManipulation] Response:', response.status, response.data)
+  },
+
+  /**
+   * Get cached manipulation/trust analysis for a video
+   */
+  getManipulation: async (videoId: string): Promise<{ manipulation: ManipulationAnalysisResult; manipulation_date: string } | null> => {
+    try {
+      const response = await api.get(`/api/cache/manipulation/${videoId}`)
+      return response.data
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return null
+      }
+      throw error
+    }
   },
 
   /**

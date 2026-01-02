@@ -215,7 +215,9 @@ Your task is to analyze a transcript for rhetorical techniques and provide a com
 
 5. **Provide Executive Summary**: Write a 2-3 paragraph professional assessment of the speaker's rhetorical effectiveness.
 
-Be thorough but accurate. Only identify techniques you're confident about. It's better to miss a subtle instance than to incorrectly flag something."""
+Be thorough but accurate. Only identify techniques you're confident about. It's better to miss a subtle instance than to incorrectly flag something.
+
+CRITICAL: Every "phrase" you report MUST be an EXACT quote from the transcript provided below. Do NOT use generic examples or famous quotes unless they actually appear in the transcript. If you cannot find a clear example of a technique in the actual transcript, do not report that technique."""
 
         user_prompt = f"""{context_info}
 ## Transcript to Analyze:

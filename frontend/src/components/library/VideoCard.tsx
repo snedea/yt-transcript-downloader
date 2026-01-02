@@ -56,19 +56,16 @@ export function VideoCard({ item, onClick }: VideoCardProps) {
               Summary
             </span>
           )}
-          {item.analysis_type === 'manipulation' && (
+          {/* Show Trust badge if manipulation analysis exists */}
+          {item.has_manipulation && (
             <span className="bg-indigo-500 text-white text-xs px-1.5 py-0.5 rounded font-medium">
               Trust
             </span>
           )}
-          {item.analysis_type === 'rhetorical' && (
+          {/* Show Rhetoric badge if rhetorical analysis exists */}
+          {item.has_rhetorical && (
             <span className="bg-purple-500 text-white text-xs px-1.5 py-0.5 rounded font-medium">
               Rhetoric
-            </span>
-          )}
-          {item.has_analysis && !item.analysis_type && (
-            <span className="bg-gray-500 text-white text-xs px-1.5 py-0.5 rounded font-medium">
-              Analyzed
             </span>
           )}
         </div>

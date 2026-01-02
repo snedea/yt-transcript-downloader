@@ -512,8 +512,15 @@ def get_pillar_by_id(pillar_id: str) -> Dict[str, Any] | None:
     return RHETORICAL_PILLARS.get(pillar_id)
 
 
-def get_toolkit_summary() -> str:
-    """Get a summary of the toolkit for use in AI prompts."""
+def get_toolkit_summary(include_examples: bool = False) -> str:
+    """
+    Get a summary of the toolkit for use in AI prompts.
+
+    Args:
+        include_examples: If False (default), excludes examples to prevent GPT
+                         from returning toolkit examples instead of actual transcript quotes.
+                         Set to True for documentation purposes only.
+    """
     summary = "# Rhetorical Toolkit Reference\n\n"
 
     summary += "## The Four Pillars of Rhetoric\n"
@@ -526,7 +533,10 @@ def get_toolkit_summary() -> str:
         for tid in cat_info["techniques"]:
             if tid in RHETORICAL_TECHNIQUES:
                 tech = RHETORICAL_TECHNIQUES[tid]
-                summary += f"- **{tech['name']}**: {tech['description']}\n"
-                summary += f"  - Examples: {'; '.join(tech['examples'][:2])}\n"
+                summary += f"- **{tech['name']}** (id: {tid}): {tech['description']}\n"
+                # Only include examples for documentation, NOT for analysis prompts
+                # Including examples causes GPT to return them instead of actual quotes
+                if include_examples:
+                    summary += f"  - Examples: {'; '.join(tech['examples'][:2])}\n"
 
     return summary

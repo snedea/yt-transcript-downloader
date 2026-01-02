@@ -78,6 +78,16 @@ class TranscriptCacheService:
             except sqlite3.OperationalError:
                 pass  # Column already exists
 
+            # Add manipulation_result columns (separate from rhetorical analysis_result)
+            try:
+                conn.execute("ALTER TABLE transcripts ADD COLUMN manipulation_result TEXT")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+            try:
+                conn.execute("ALTER TABLE transcripts ADD COLUMN manipulation_date TEXT")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+
             # Create index for faster lookups
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_last_accessed
@@ -193,6 +203,13 @@ class TranscriptCacheService:
                         result['summary_result'] = json.loads(result['summary_result'])
                     except json.JSONDecodeError:
                         result['summary_result'] = None
+
+                # Parse manipulation_result JSON if present
+                if result.get('manipulation_result'):
+                    try:
+                        result['manipulation_result'] = json.loads(result['manipulation_result'])
+                    except json.JSONDecodeError:
+                        result['manipulation_result'] = None
 
                 # Convert is_cleaned to bool
                 result['is_cleaned'] = bool(result.get('is_cleaned', 0))
@@ -506,6 +523,77 @@ class TranscriptCacheService:
             )
             return cursor.fetchone() is not None
 
+    def save_manipulation(self, video_id: str, manipulation_result: Dict[str, Any]) -> bool:
+        """
+        Save manipulation/trust analysis results for a video.
+
+        Args:
+            video_id: YouTube video ID
+            manipulation_result: The complete manipulation analysis result dictionary
+
+        Returns:
+            True if saved successfully, False otherwise
+        """
+        now = datetime.utcnow().isoformat()
+        manipulation_json = json.dumps(manipulation_result)
+
+        try:
+            with self._get_connection() as conn:
+                conn.execute(
+                    """
+                    UPDATE transcripts
+                    SET manipulation_result = ?, manipulation_date = ?
+                    WHERE video_id = ?
+                    """,
+                    (manipulation_json, now, video_id)
+                )
+                conn.commit()
+
+                if conn.total_changes > 0:
+                    logger.info(f"Saved manipulation analysis for video {video_id}")
+                    return True
+                else:
+                    logger.warning(f"No transcript found to save manipulation analysis for video {video_id}")
+                    return False
+
+        except Exception as e:
+            logger.error(f"Failed to save manipulation analysis: {e}")
+            return False
+
+    def get_manipulation(self, video_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get cached manipulation/trust analysis results for a video.
+
+        Returns:
+            Manipulation result dict or None if not found
+        """
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT manipulation_result, manipulation_date FROM transcripts WHERE video_id = ?",
+                (video_id,)
+            )
+            row = cursor.fetchone()
+
+            if row and row['manipulation_result']:
+                try:
+                    return {
+                        'manipulation': json.loads(row['manipulation_result']),
+                        'manipulation_date': row['manipulation_date']
+                    }
+                except json.JSONDecodeError:
+                    return None
+
+            return None
+
+    def has_manipulation(self, video_id: str) -> bool:
+        """Check if a video has cached manipulation analysis."""
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT 1 FROM transcripts WHERE video_id = ? AND manipulation_result IS NOT NULL",
+                (video_id,)
+            )
+            return cursor.fetchone() is not None
+
     def _ensure_fts_populated(self):
         """Ensure FTS index is populated with existing transcript data."""
         with self._get_connection() as conn:
@@ -613,12 +701,12 @@ class TranscriptCacheService:
                 else:
                     conditions.append("summary_result IS NULL")
 
-            # Has analysis filter
+            # Has analysis filter (either rhetorical or manipulation)
             if has_analysis is not None:
                 if has_analysis:
-                    conditions.append("analysis_result IS NOT NULL")
+                    conditions.append("(analysis_result IS NOT NULL OR manipulation_result IS NOT NULL)")
                 else:
-                    conditions.append("analysis_result IS NULL")
+                    conditions.append("(analysis_result IS NULL AND manipulation_result IS NULL)")
 
             # Tag filter (all tags must be present in keywords)
             if tags:
@@ -649,10 +737,13 @@ class TranscriptCacheService:
                     created_at,
                     last_accessed,
                     access_count,
-                    CASE WHEN analysis_result IS NOT NULL THEN 1 ELSE 0 END as has_analysis,
+                    CASE WHEN (analysis_result IS NOT NULL OR manipulation_result IS NOT NULL) THEN 1 ELSE 0 END as has_analysis,
                     CASE WHEN summary_result IS NOT NULL THEN 1 ELSE 0 END as has_summary,
+                    CASE WHEN manipulation_result IS NOT NULL THEN 1 ELSE 0 END as has_manipulation,
+                    CASE WHEN analysis_result IS NOT NULL THEN 1 ELSE 0 END as has_rhetorical,
                     CASE
-                        WHEN json_extract(analysis_result, '$.dimension_scores') IS NOT NULL THEN 'manipulation'
+                        WHEN manipulation_result IS NOT NULL AND analysis_result IS NOT NULL THEN 'both'
+                        WHEN manipulation_result IS NOT NULL THEN 'manipulation'
                         WHEN analysis_result IS NOT NULL THEN 'rhetorical'
                         ELSE NULL
                     END as analysis_type,
@@ -674,6 +765,8 @@ class TranscriptCacheService:
                 item['is_cleaned'] = bool(item.get('is_cleaned', 0))
                 item['has_analysis'] = bool(item.get('has_analysis', 0))
                 item['has_summary'] = bool(item.get('has_summary', 0))
+                item['has_manipulation'] = bool(item.get('has_manipulation', 0))
+                item['has_rhetorical'] = bool(item.get('has_rhetorical', 0))
                 # Parse keywords JSON
                 if item.get('keywords'):
                     try:

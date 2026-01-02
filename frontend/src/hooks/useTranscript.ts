@@ -1,10 +1,15 @@
 import { useState, useCallback } from 'react'
 import { transcriptApi, cacheApi } from '@/services/api'
-import type { TranscriptResponse, AnalysisResult, ContentSummaryResult } from '@/types'
+import type { TranscriptResponse, AnalysisResult, ContentSummaryResult, ManipulationAnalysisResult } from '@/types'
 
 interface TranscriptData extends TranscriptResponse {
+  // Rhetorical analysis (v1.0)
   cachedAnalysis?: AnalysisResult
   analysisDate?: string
+  // Manipulation/Trust analysis (v2.0)
+  cachedManipulation?: ManipulationAnalysisResult
+  manipulationDate?: string
+  // Content summary
   cachedSummary?: ContentSummaryResult
   summaryDate?: string
 }
@@ -52,8 +57,13 @@ export const useTranscript = () => {
           tokens_used: cached.tokens_used,
           transcript_data: cached.transcript_data,
           cached: true,
+          // Rhetorical analysis (v1.0)
           cachedAnalysis: cached.analysis_result,
           analysisDate: cached.analysis_date,
+          // Manipulation/Trust analysis (v2.0)
+          cachedManipulation: cached.manipulation_result,
+          manipulationDate: cached.manipulation_date,
+          // Content summary
           cachedSummary: cached.summary_result,
           summaryDate: cached.summary_date
         })

@@ -134,16 +134,24 @@ export function useManipulationAnalysis(): UseManipulationAnalysisReturn {
       setResult(analysisResult)
 
       // Save to cache if videoId is provided
-      // Note: We may want to add a separate cache method for manipulation analysis
+      // Uses separate manipulation_result column to coexist with rhetorical analysis
+      console.log('[ManipulationAnalysis] Checking save conditions:', {
+        hasVideoId: !!options?.videoId,
+        videoId: options?.videoId,
+        hasResult: !!analysisResult,
+        resultKeys: analysisResult ? Object.keys(analysisResult) : []
+      })
+
       if (options?.videoId) {
+        console.log('[ManipulationAnalysis] Attempting to save to cache...')
         try {
-          // For now, save as a regular analysis result
-          // The backend should handle the v2.0 format
-          await cacheApi.saveAnalysis(options.videoId, analysisResult as any)
-          console.log('Manipulation analysis saved to cache for video:', options.videoId)
+          await cacheApi.saveManipulation(options.videoId, analysisResult)
+          console.log('[ManipulationAnalysis] ✅ Successfully saved to cache for video:', options.videoId)
         } catch (cacheErr) {
-          console.warn('Failed to cache manipulation analysis:', cacheErr)
+          console.error('[ManipulationAnalysis] ❌ Failed to cache manipulation analysis:', cacheErr)
         }
+      } else {
+        console.warn('[ManipulationAnalysis] ⚠️ No videoId provided, skipping cache save')
       }
     } catch (err: any) {
       const errorMessage = err.response?.data?.detail

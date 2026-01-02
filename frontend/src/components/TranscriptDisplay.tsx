@@ -22,8 +22,13 @@ interface TranscriptDisplayProps {
   tokensUsed?: number
   transcriptData?: TranscriptSegment[]
   cached?: boolean
+  // Rhetorical analysis (v1.0)
   cachedAnalysis?: import('@/types').AnalysisResult
   analysisDate?: string
+  // Manipulation/Trust analysis (v2.0)
+  cachedManipulation?: import('@/types').ManipulationAnalysisResult
+  manipulationDate?: string
+  // Content summary
   cachedSummary?: import('@/types').ContentSummaryResult
   summaryDate?: string
 }
@@ -39,11 +44,13 @@ export default function TranscriptDisplay({
   cached,
   cachedAnalysis,
   analysisDate,
+  cachedManipulation,
+  manipulationDate,
   cachedSummary,
   summaryDate
 }: TranscriptDisplayProps) {
   const [copied, setCopied] = useState(false)
-  const [showAnalysis, setShowAnalysis] = useState(cachedAnalysis || cachedSummary ? true : false)
+  const [showAnalysis, setShowAnalysis] = useState(cachedAnalysis || cachedManipulation || cachedSummary ? true : false)
   const [verifyQuotes, setVerifyQuotes] = useState(true)
   const [analysisType, setAnalysisType] = useState<AnalysisType>('summary')
   const [showModeSelector, setShowModeSelector] = useState(false)  // Show mode selector for manipulation only
@@ -116,15 +123,17 @@ export default function TranscriptDisplay({
       defaultType = 'summary'
     }
 
-    // Load cached analysis (manipulation or rhetorical)
-    if (cachedAnalysis) {
-      if ('dimension_scores' in cachedAnalysis) {
-        setManipulationFromCache(cachedAnalysis as any)
-        if (!cachedSummary) defaultType = 'manipulation'
-      } else {
-        setRhetoricalFromCache(cachedAnalysis)
-        if (!cachedSummary) defaultType = 'rhetorical'
-      }
+    // Load cached manipulation/trust analysis (v2.0) from separate column
+    if (cachedManipulation) {
+      setManipulationFromCache(cachedManipulation)
+      if (!cachedSummary) defaultType = 'manipulation'
+      hasAnyCached = true
+    }
+
+    // Load cached rhetorical analysis (v1.0) from analysis_result column
+    if (cachedAnalysis && cachedAnalysis.pillar_scores) {
+      setRhetoricalFromCache(cachedAnalysis)
+      if (!cachedSummary && !cachedManipulation) defaultType = 'rhetorical'
       hasAnyCached = true
     }
 
@@ -132,7 +141,7 @@ export default function TranscriptDisplay({
       setAnalysisType(defaultType)
       setShowAnalysis(true)
     }
-  }, [videoId, cachedAnalysis, cachedSummary, setRhetoricalFromCache, setManipulationFromCache, setSummaryFromCache])
+  }, [videoId, cachedAnalysis, cachedManipulation, cachedSummary, setRhetoricalFromCache, setManipulationFromCache, setSummaryFromCache])
 
   const handleCopy = async () => {
     const success = await copyToClipboard(transcript)

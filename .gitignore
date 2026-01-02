@@ -54,3 +54,4 @@ htmlcov/
 # PID files
 *.pid
 backend/data/
+backend/transcript_cache.db
