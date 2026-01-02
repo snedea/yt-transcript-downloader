@@ -5,7 +5,7 @@ API endpoints for transcript caching and history.
 """
 
 import logging
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, List
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
@@ -219,3 +219,102 @@ async def get_cached_summary(video_id: str):
         "summary_date": result["summary_date"],
         "cached": True
     }
+
+
+@router.get("/search/advanced")
+async def advanced_search(
+    q: str = Query("", description="Full-text search query"),
+    content_type: Optional[List[str]] = Query(None, description="Filter by content type(s)"),
+    has_summary: Optional[bool] = Query(None, description="Filter by summary status"),
+    has_analysis: Optional[bool] = Query(None, description="Filter by analysis status"),
+    tags: Optional[List[str]] = Query(None, description="Filter by tags (all must match)"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    order_by: str = Query("last_accessed", regex="^(last_accessed|created_at|title)$")
+):
+    """
+    Advanced search with full-text search and faceted filtering.
+
+    - **q**: Search query (searches title, transcript, tags)
+    - **content_type**: Filter by content type(s) like 'programming_technical', 'educational'
+    - **has_summary**: Filter by whether video has a summary
+    - **has_analysis**: Filter by whether video has been analyzed
+    - **tags**: Filter by specific tags (all must match)
+    - **order_by**: Sort order - 'last_accessed', 'created_at', or 'title'
+    """
+    cache = get_cache_service()
+    items = cache.advanced_search(
+        query=q,
+        content_types=content_type,
+        has_summary=has_summary,
+        has_analysis=has_analysis,
+        tags=tags,
+        limit=limit,
+        offset=offset,
+        order_by=order_by
+    )
+
+    return {
+        "query": q,
+        "filters": {
+            "content_type": content_type,
+            "has_summary": has_summary,
+            "has_analysis": has_analysis,
+            "tags": tags
+        },
+        "results": items,
+        "count": len(items)
+    }
+
+
+@router.get("/tags")
+async def get_all_tags(
+    limit: int = Query(100, ge=1, le=500)
+):
+    """
+    Get all unique tags with their counts for faceted search.
+
+    Returns tags sorted by frequency (most used first).
+    """
+    cache = get_cache_service()
+    tags = cache.get_all_tags(limit=limit)
+    return {"tags": tags}
+
+
+@router.get("/content-types")
+async def get_content_types():
+    """
+    Get content type distribution.
+
+    Returns count of videos per content type.
+    """
+    cache = get_cache_service()
+    counts = cache.get_content_type_counts()
+    return {"content_types": counts}
+
+
+@router.get("/library/stats")
+async def get_library_stats():
+    """
+    Get library statistics including total videos, summarized, and analyzed counts.
+    """
+    cache = get_cache_service()
+    stats = cache.get_stats()
+
+    return {
+        "total": stats["total"],
+        "with_summary": stats["with_summary"],
+        "with_analysis": stats["with_analysis"]
+    }
+
+
+@router.post("/fts/rebuild")
+async def rebuild_fts_index():
+    """
+    Manually rebuild the full-text search index.
+
+    Use this if search results seem incomplete or after data migration.
+    """
+    cache = get_cache_service()
+    cache.rebuild_fts_index()
+    return {"status": "success", "message": "FTS index rebuilt"}

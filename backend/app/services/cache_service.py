@@ -84,8 +84,49 @@ class TranscriptCacheService:
                 ON transcripts(last_accessed DESC)
             """)
 
+            # Create FTS5 virtual table for full-text search
+            conn.execute("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS transcripts_fts USING fts5(
+                    video_id,
+                    video_title,
+                    author,
+                    transcript,
+                    tags,
+                    content_type,
+                    content='transcripts',
+                    content_rowid='rowid'
+                )
+            """)
+
+            # Create triggers to keep FTS in sync
+            conn.execute("""
+                CREATE TRIGGER IF NOT EXISTS transcripts_fts_ai AFTER INSERT ON transcripts BEGIN
+                    INSERT INTO transcripts_fts(rowid, video_id, video_title, author, transcript, tags, content_type)
+                    VALUES (new.rowid, new.video_id, new.video_title, COALESCE(new.author, ''), new.transcript, '', '');
+                END
+            """)
+
+            conn.execute("""
+                CREATE TRIGGER IF NOT EXISTS transcripts_fts_ad AFTER DELETE ON transcripts BEGIN
+                    INSERT INTO transcripts_fts(transcripts_fts, rowid, video_id, video_title, author, transcript, tags, content_type)
+                    VALUES ('delete', old.rowid, old.video_id, old.video_title, COALESCE(old.author, ''), old.transcript, '', '');
+                END
+            """)
+
+            conn.execute("""
+                CREATE TRIGGER IF NOT EXISTS transcripts_fts_au AFTER UPDATE ON transcripts BEGIN
+                    INSERT INTO transcripts_fts(transcripts_fts, rowid, video_id, video_title, author, transcript, tags, content_type)
+                    VALUES ('delete', old.rowid, old.video_id, old.video_title, COALESCE(old.author, ''), old.transcript, '', '');
+                    INSERT INTO transcripts_fts(rowid, video_id, video_title, author, transcript, tags, content_type)
+                    VALUES (new.rowid, new.video_id, new.video_title, COALESCE(new.author, ''), new.transcript, '', '');
+                END
+            """)
+
             conn.commit()
             logger.info(f"Database initialized at {self.db_path}")
+
+            # Rebuild FTS index if it's empty but transcripts exist
+            self._ensure_fts_populated()
 
     @contextmanager
     def _get_connection(self):
@@ -458,6 +499,227 @@ class TranscriptCacheService:
                 (video_id,)
             )
             return cursor.fetchone() is not None
+
+    def _ensure_fts_populated(self):
+        """Ensure FTS index is populated with existing transcript data."""
+        with self._get_connection() as conn:
+            # Check if FTS is empty but transcripts exist
+            fts_count = conn.execute("SELECT COUNT(*) FROM transcripts_fts").fetchone()[0]
+            transcript_count = conn.execute("SELECT COUNT(*) FROM transcripts").fetchone()[0]
+
+            if transcript_count > 0 and fts_count == 0:
+                logger.info(f"Rebuilding FTS index for {transcript_count} transcripts...")
+                self._rebuild_fts_index_internal(conn)
+
+    def _rebuild_fts_index_internal(self, conn):
+        """Internal method to rebuild FTS index with an existing connection."""
+        cursor = conn.execute("""
+            SELECT
+                rowid,
+                video_id,
+                video_title,
+                author,
+                transcript,
+                summary_result
+            FROM transcripts
+        """)
+
+        for row in cursor.fetchall():
+            tags = ""
+            content_type = ""
+            if row['summary_result']:
+                try:
+                    summary = json.loads(row['summary_result'])
+                    keywords = summary.get('keywords', [])
+                    tags = ' '.join(keywords) if keywords else ''
+                    content_type = summary.get('content_type', '') or ''
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+            conn.execute("""
+                INSERT INTO transcripts_fts(rowid, video_id, video_title, author, transcript, tags, content_type)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (row['rowid'], row['video_id'], row['video_title'],
+                  row['author'] or '', row['transcript'], tags, content_type))
+
+        conn.commit()
+        logger.info("FTS index rebuilt successfully")
+
+    def rebuild_fts_index(self):
+        """Rebuild the FTS index from scratch."""
+        with self._get_connection() as conn:
+            # Clear existing FTS data
+            conn.execute("DELETE FROM transcripts_fts")
+            self._rebuild_fts_index_internal(conn)
+
+    def advanced_search(
+        self,
+        query: str = "",
+        content_types: Optional[List[str]] = None,
+        has_summary: Optional[bool] = None,
+        has_analysis: Optional[bool] = None,
+        tags: Optional[List[str]] = None,
+        limit: int = 50,
+        offset: int = 0,
+        order_by: str = "last_accessed"
+    ) -> List[Dict[str, Any]]:
+        """
+        Advanced search with filters and full-text search.
+
+        Args:
+            query: Full-text search query (searches title, transcript, tags)
+            content_types: Filter by content type(s)
+            has_summary: Filter by whether summary exists
+            has_analysis: Filter by whether analysis exists
+            tags: Filter by specific tags (all must match)
+            limit: Max results
+            offset: Pagination offset
+            order_by: 'last_accessed', 'created_at', 'title'
+        """
+        with self._get_connection() as conn:
+            conditions = []
+            params = []
+
+            # Full-text search using FTS5
+            if query and query.strip():
+                # Escape special FTS5 characters and add prefix matching
+                safe_query = query.replace('"', '""').strip()
+                conditions.append("""
+                    video_id IN (
+                        SELECT video_id FROM transcripts_fts
+                        WHERE transcripts_fts MATCH ?
+                    )
+                """)
+                # Use prefix matching for partial words
+                params.append(f'"{safe_query}"*')
+
+            # Content type filter
+            if content_types:
+                placeholders = ','.join(['?' for _ in content_types])
+                conditions.append(f"""
+                    json_extract(summary_result, '$.content_type') IN ({placeholders})
+                """)
+                params.extend(content_types)
+
+            # Has summary filter
+            if has_summary is not None:
+                if has_summary:
+                    conditions.append("summary_result IS NOT NULL")
+                else:
+                    conditions.append("summary_result IS NULL")
+
+            # Has analysis filter
+            if has_analysis is not None:
+                if has_analysis:
+                    conditions.append("analysis_result IS NOT NULL")
+                else:
+                    conditions.append("analysis_result IS NULL")
+
+            # Tag filter (all tags must be present in keywords)
+            if tags:
+                for tag in tags:
+                    conditions.append("""
+                        json_extract(summary_result, '$.keywords') LIKE ?
+                    """)
+                    params.append(f'%"{tag}"%')
+
+            # Build WHERE clause
+            where_clause = ""
+            if conditions:
+                where_clause = "WHERE " + " AND ".join(conditions)
+
+            # Order by clause
+            order_clause = {
+                'last_accessed': 'ORDER BY last_accessed DESC',
+                'created_at': 'ORDER BY created_at DESC',
+                'title': 'ORDER BY video_title ASC'
+            }.get(order_by, 'ORDER BY last_accessed DESC')
+
+            sql = f"""
+                SELECT
+                    video_id,
+                    video_title,
+                    author,
+                    is_cleaned,
+                    created_at,
+                    last_accessed,
+                    access_count,
+                    CASE WHEN analysis_result IS NOT NULL THEN 1 ELSE 0 END as has_analysis,
+                    CASE WHEN summary_result IS NOT NULL THEN 1 ELSE 0 END as has_summary,
+                    json_extract(summary_result, '$.content_type') as content_type,
+                    json_extract(summary_result, '$.keywords') as keywords,
+                    json_extract(summary_result, '$.tldr') as tldr
+                FROM transcripts
+                {where_clause}
+                {order_clause}
+                LIMIT ? OFFSET ?
+            """
+            params.extend([limit, offset])
+
+            cursor = conn.execute(sql, params)
+
+            items = []
+            for row in cursor.fetchall():
+                item = dict(row)
+                item['is_cleaned'] = bool(item.get('is_cleaned', 0))
+                item['has_analysis'] = bool(item.get('has_analysis', 0))
+                item['has_summary'] = bool(item.get('has_summary', 0))
+                # Parse keywords JSON
+                if item.get('keywords'):
+                    try:
+                        item['keywords'] = json.loads(item['keywords'])
+                    except (json.JSONDecodeError, TypeError):
+                        item['keywords'] = []
+                else:
+                    item['keywords'] = []
+                items.append(item)
+
+            return items
+
+    def get_all_tags(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """Get all unique tags with their counts for faceted search."""
+        with self._get_connection() as conn:
+            cursor = conn.execute("""
+                SELECT
+                    value as tag,
+                    COUNT(*) as count
+                FROM transcripts, json_each(json_extract(summary_result, '$.keywords'))
+                WHERE summary_result IS NOT NULL
+                GROUP BY value
+                ORDER BY count DESC
+                LIMIT ?
+            """, (limit,))
+            return [{'tag': row['tag'], 'count': row['count']} for row in cursor.fetchall()]
+
+    def get_content_type_counts(self) -> Dict[str, int]:
+        """Get count of videos per content type."""
+        with self._get_connection() as conn:
+            cursor = conn.execute("""
+                SELECT
+                    json_extract(summary_result, '$.content_type') as content_type,
+                    COUNT(*) as count
+                FROM transcripts
+                WHERE summary_result IS NOT NULL
+                GROUP BY content_type
+            """)
+            return {row['content_type']: row['count'] for row in cursor.fetchall() if row['content_type']}
+
+    def get_stats(self) -> Dict[str, int]:
+        """Get library statistics."""
+        with self._get_connection() as conn:
+            total = conn.execute("SELECT COUNT(*) FROM transcripts").fetchone()[0]
+            with_summary = conn.execute(
+                "SELECT COUNT(*) FROM transcripts WHERE summary_result IS NOT NULL"
+            ).fetchone()[0]
+            with_analysis = conn.execute(
+                "SELECT COUNT(*) FROM transcripts WHERE analysis_result IS NOT NULL"
+            ).fetchone()[0]
+
+            return {
+                'total': total,
+                'with_summary': with_summary,
+                'with_analysis': with_analysis
+            }
 
 
 # Singleton instance

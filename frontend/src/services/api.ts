@@ -83,6 +83,51 @@ export interface CachedTranscript extends TranscriptResponse {
   has_summary: boolean
 }
 
+// Library/Search API types
+export interface LibraryItem {
+  video_id: string
+  video_title: string
+  author: string | null
+  is_cleaned: boolean
+  has_analysis: boolean
+  has_summary: boolean
+  content_type: string | null
+  keywords: string[]
+  tldr: string | null
+  created_at: string
+  last_accessed: string
+  access_count: number
+}
+
+export interface SearchFilters {
+  q?: string
+  content_type?: string[]
+  has_summary?: boolean
+  has_analysis?: boolean
+  tags?: string[]
+  limit?: number
+  offset?: number
+  order_by?: 'last_accessed' | 'created_at' | 'title'
+}
+
+export interface SearchResponse {
+  query: string
+  filters: Partial<SearchFilters>
+  results: LibraryItem[]
+  count: number
+}
+
+export interface TagCount {
+  tag: string
+  count: number
+}
+
+export interface LibraryStats {
+  total: number
+  with_summary: number
+  with_analysis: number
+}
+
 export const cacheApi = {
   /**
    * Get transcript history
@@ -182,6 +227,61 @@ export const cacheApi = {
       }
       throw error
     }
+  },
+
+  /**
+   * Advanced search with full-text search and faceted filtering
+   */
+  advancedSearch: async (filters: SearchFilters): Promise<SearchResponse> => {
+    const params = new URLSearchParams()
+    if (filters.q) params.set('q', filters.q)
+    if (filters.content_type) {
+      filters.content_type.forEach(t => params.append('content_type', t))
+    }
+    if (filters.has_summary !== undefined) params.set('has_summary', String(filters.has_summary))
+    if (filters.has_analysis !== undefined) params.set('has_analysis', String(filters.has_analysis))
+    if (filters.tags) {
+      filters.tags.forEach(t => params.append('tags', t))
+    }
+    if (filters.limit) params.set('limit', String(filters.limit))
+    if (filters.offset) params.set('offset', String(filters.offset))
+    if (filters.order_by) params.set('order_by', filters.order_by)
+
+    const response = await api.get<SearchResponse>(`/api/cache/search/advanced?${params}`)
+    return response.data
+  },
+
+  /**
+   * Get all tags for faceted search
+   */
+  getTags: async (limit: number = 100): Promise<{ tags: TagCount[] }> => {
+    const response = await api.get<{ tags: TagCount[] }>('/api/cache/tags', {
+      params: { limit }
+    })
+    return response.data
+  },
+
+  /**
+   * Get content type distribution
+   */
+  getContentTypes: async (): Promise<{ content_types: Record<string, number> }> => {
+    const response = await api.get<{ content_types: Record<string, number> }>('/api/cache/content-types')
+    return response.data
+  },
+
+  /**
+   * Get library statistics
+   */
+  getLibraryStats: async (): Promise<LibraryStats> => {
+    const response = await api.get<LibraryStats>('/api/cache/library/stats')
+    return response.data
+  },
+
+  /**
+   * Rebuild full-text search index
+   */
+  rebuildFtsIndex: async (): Promise<void> => {
+    await api.post('/api/cache/fts/rebuild')
   }
 }
 
