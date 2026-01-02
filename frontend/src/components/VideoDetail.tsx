@@ -59,6 +59,8 @@ export default function VideoDetail({ videoId, onBack }: VideoDetailProps) {
               manipulationDate={data.manipulationDate}
               cachedSummary={data.cachedSummary}
               summaryDate={data.summaryDate}
+              cachedDiscovery={data.cachedDiscovery}
+              discoveryDate={data.discoveryDate}
             />
           </div>
         )}

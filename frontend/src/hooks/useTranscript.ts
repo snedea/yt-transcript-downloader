@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { transcriptApi, cacheApi } from '@/services/api'
-import type { TranscriptResponse, AnalysisResult, ContentSummaryResult, ManipulationAnalysisResult } from '@/types'
+import type { TranscriptResponse, AnalysisResult, ContentSummaryResult, ManipulationAnalysisResult, DiscoveryResult } from '@/types'
 
 interface TranscriptData extends TranscriptResponse {
   // Rhetorical analysis (v1.0)
@@ -12,6 +12,9 @@ interface TranscriptData extends TranscriptResponse {
   // Content summary
   cachedSummary?: ContentSummaryResult
   summaryDate?: string
+  // Discovery analysis (Kinoshita Pattern)
+  cachedDiscovery?: DiscoveryResult
+  discoveryDate?: string
 }
 
 export const useTranscript = () => {
@@ -65,7 +68,10 @@ export const useTranscript = () => {
           manipulationDate: cached.manipulation_date,
           // Content summary
           cachedSummary: cached.summary_result,
-          summaryDate: cached.summary_date
+          summaryDate: cached.summary_date,
+          // Discovery analysis (Kinoshita Pattern)
+          cachedDiscovery: cached.discovery_result,
+          discoveryDate: cached.discovery_date
         })
       } else {
         setData(null)
