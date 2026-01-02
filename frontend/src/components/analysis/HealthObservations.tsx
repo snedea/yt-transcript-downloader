@@ -274,9 +274,25 @@ export function HealthObservations({
               </p>
             </div>
 
-            {videoTitle && (
-              <p className="text-rose-200 text-sm">{videoTitle}</p>
-            )}
+            {/* Video Info */}
+            <div className="mt-2">
+              {(videoTitle || result.video_title) && (
+                <h3 className="text-lg font-semibold text-white">
+                  {videoTitle || result.video_title}
+                </h3>
+              )}
+              <a
+                href={fullVideoUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-rose-200 hover:text-white text-sm flex items-center gap-1 mt-1"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
+                </svg>
+                Watch on YouTube ({result.video_id})
+              </a>
+            </div>
           </div>
 
           {/* Reanalyze Button */}

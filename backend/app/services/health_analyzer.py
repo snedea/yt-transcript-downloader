@@ -99,11 +99,15 @@ class HealthAnalyzer:
         try:
             # Step 1: Extract frames
             logger.info(f"Extracting frames from video {video_id}...")
-            frames, video_dir = await self.frame_extractor.extract_frames(
+            frames, video_dir, fetched_title = await self.frame_extractor.extract_frames(
                 video_id=video_id,
                 interval_seconds=interval_seconds,
                 max_frames=max_frames
             )
+            # Use fetched title if video_title param not provided
+            if not video_title and fetched_title:
+                video_title = fetched_title
+                logger.info(f"Using fetched video title: {video_title}")
             frames_extracted = len(frames)
             logger.info(f"Extracted {frames_extracted} frames")
 

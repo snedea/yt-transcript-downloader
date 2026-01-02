@@ -38,7 +38,7 @@ class FrameExtractor:
         video_id: str,
         interval_seconds: int = 30,
         max_frames: int = 20
-    ) -> tuple[List[ExtractedFrame], Path]:
+    ) -> tuple[List[ExtractedFrame], Path, str]:
         """
         Download video and extract frames at intervals.
 
@@ -48,7 +48,7 @@ class FrameExtractor:
             max_frames: Maximum number of frames to extract
 
         Returns:
-            Tuple of (list of extracted frames, temp directory path)
+            Tuple of (list of extracted frames, temp directory path, video title)
             Caller is responsible for cleaning up temp directory after use.
         """
         video_dir = self._get_video_dir(video_id)
@@ -59,7 +59,8 @@ class FrameExtractor:
         try:
             # Step 1: Download video with yt-dlp
             logger.info(f"Downloading video {video_id}...")
-            await self._download_video(video_id, video_path)
+            video_title = await self._download_video(video_id, video_path)
+            logger.info(f"Video title: {video_title}")
 
             if not video_path.exists():
                 raise RuntimeError(f"Failed to download video {video_id}")
@@ -78,7 +79,7 @@ class FrameExtractor:
             )
 
             logger.info(f"Extracted {len(frames)} frames to {frames_dir}")
-            return frames, video_dir
+            return frames, video_dir, video_title
 
         except Exception as e:
             # Clean up on error
@@ -86,8 +87,8 @@ class FrameExtractor:
             self.cleanup(video_dir)
             raise
 
-    async def _download_video(self, video_id: str, output_path: Path) -> None:
-        """Download video using yt-dlp."""
+    async def _download_video(self, video_id: str, output_path: Path) -> str:
+        """Download video using yt-dlp. Returns the video title."""
         url = f"https://www.youtube.com/watch?v={video_id}"
 
         # Use format that's good for frame extraction (mp4, reasonable quality)
@@ -97,10 +98,13 @@ class FrameExtractor:
             "--merge-output-format", "mp4",
             "-o", str(output_path),
             "--no-playlist",
+            "--no-simulate",  # Required when using --print to still download
             "--remote-components", "ejs:github",  # Required for YouTube JS challenges
-            "--quiet",
+            "--print", "title",  # Print the video title
             url
         ]
+
+        logger.info(f"Downloading video {video_id} with yt-dlp...")
 
         process = await asyncio.create_subprocess_exec(
             *cmd,
@@ -109,9 +113,18 @@ class FrameExtractor:
         )
         stdout, stderr = await process.communicate()
 
+        stdout_str = stdout.decode() if stdout else ""
+        stderr_str = stderr.decode() if stderr else ""
+
+        logger.debug(f"yt-dlp return code: {process.returncode}")
+
         if process.returncode != 0:
-            error_msg = stderr.decode() if stderr else "Unknown error"
-            raise RuntimeError(f"yt-dlp failed: {error_msg}")
+            raise RuntimeError(f"yt-dlp failed (code {process.returncode}): {stderr_str[:1000]}")
+
+        # Extract title from stdout (first line)
+        title = stdout_str.strip().split('\n')[0] if stdout_str else ""
+        logger.info(f"Extracted video title: {title}")
+        return title
 
     async def _get_video_duration(self, video_path: Path) -> float:
         """Get video duration in seconds using ffprobe."""

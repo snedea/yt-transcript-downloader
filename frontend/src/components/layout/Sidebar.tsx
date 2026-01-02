@@ -39,14 +39,20 @@ export function Sidebar({
       {/* Header */}
       <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
         {!collapsed && (
-          <h1 className="text-lg font-bold text-gray-900 dark:text-white truncate">
+          <button
+            onClick={() => onViewChange('library')}
+            className="text-lg font-bold text-gray-900 dark:text-white truncate hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer select-none"
+          >
             YT Analyzer
-          </h1>
+          </button>
         )}
         {collapsed && (
-          <span className="text-lg font-bold text-gray-900 dark:text-white mx-auto">
+          <button
+            onClick={() => onViewChange('library')}
+            className="text-lg font-bold text-gray-900 dark:text-white mx-auto hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer select-none"
+          >
             YT
-          </span>
+          </button>
         )}
         {onToggleCollapse && (
           <button
