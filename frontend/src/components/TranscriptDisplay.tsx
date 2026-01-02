@@ -184,6 +184,17 @@ export default function TranscriptDisplay({
     resetSummary()
   }
 
+  // Re-analyze summary with fresh API call (bypasses cache)
+  const handleReanalyzeSummary = async () => {
+    const videoUrl = videoId ? `https://youtube.com/watch?v=${videoId}` : undefined
+    await analyzeSummary(transcript, transcriptData, {
+      videoTitle,
+      videoAuthor: author,
+      videoId,
+      videoUrl
+    })
+  }
+
   const wordCount = transcript.split(/\s+/).length
 
   return (
@@ -486,6 +497,8 @@ export default function TranscriptDisplay({
               videoId={videoId}
               videoUrl={videoId ? `https://youtube.com/watch?v=${videoId}` : undefined}
               isCached={isSummaryCached}
+              onReanalyze={handleReanalyzeSummary}
+              isReanalyzing={summaryLoading}
             />
           ) : manipulationResult ? (
             <ManipulationAnalysis

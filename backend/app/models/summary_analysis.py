@@ -72,6 +72,73 @@ class KeyMoment(BaseModel):
     description: str = Field(..., description="What happens at this moment")
 
 
+class ScholarlyFigure(BaseModel):
+    """A named figure mentioned in scholarly/educational content."""
+    name: str = Field(..., description="Name of the figure")
+    role: Optional[str] = Field(None, description="Role or title")
+    period: Optional[str] = Field(None, description="Time period or dates")
+    relationships: Optional[str] = Field(None, description="Relationships to other figures")
+    significance: Optional[str] = Field(None, description="Why this figure is important")
+
+
+class ScholarlySource(BaseModel):
+    """A source or text discussed in scholarly content."""
+    name: str = Field(..., description="Name of the source")
+    type: Optional[str] = Field(None, description="Type of source (text, manuscript, etc.)")
+    description: Optional[str] = Field(None, description="What this source is")
+    significance: Optional[str] = Field(None, description="Why this source matters")
+
+
+class ScholarlyDebate(BaseModel):
+    """A scholarly debate or contested topic."""
+    topic: str = Field(..., description="The topic being debated")
+    positions: List[str] = Field(default_factory=list, description="Different scholarly positions")
+    evidence: Optional[str] = Field(None, description="Evidence supporting different positions")
+    consensus: Optional[str] = Field(None, description="Current scholarly consensus if any")
+
+
+class EvidenceType(BaseModel):
+    """A type of evidence mentioned in the content."""
+    type: str = Field(..., description="Type of evidence (archaeological, textual, etc.)")
+    examples: List[str] = Field(default_factory=list, description="Specific examples mentioned")
+    significance: Optional[str] = Field(None, description="What this evidence shows")
+
+
+class TimePeriod(BaseModel):
+    """A historical time period discussed."""
+    period: str = Field(..., description="Name of the period")
+    dates: Optional[str] = Field(None, description="Approximate dates")
+    context: Optional[str] = Field(None, description="Relevant historical context")
+
+
+class ScholarlyContext(BaseModel):
+    """Scholarly context for educational content."""
+    figures: List[ScholarlyFigure] = Field(
+        default_factory=list,
+        description="Named figures discussed"
+    )
+    sources: List[ScholarlySource] = Field(
+        default_factory=list,
+        description="Sources and texts mentioned"
+    )
+    debates: List[ScholarlyDebate] = Field(
+        default_factory=list,
+        description="Scholarly debates presented"
+    )
+    evidence_types: List[EvidenceType] = Field(
+        default_factory=list,
+        description="Types of evidence discussed"
+    )
+    methodology: List[str] = Field(
+        default_factory=list,
+        description="Methodological approaches used"
+    )
+    time_periods: List[TimePeriod] = Field(
+        default_factory=list,
+        description="Historical periods discussed"
+    )
+
+
 class ContentSummaryResult(BaseModel):
     """Complete result of the content summary analysis."""
 
@@ -127,6 +194,12 @@ class ContentSummaryResult(BaseModel):
     key_moments: List[KeyMoment] = Field(
         default_factory=list,
         description="Important moments with timestamps"
+    )
+
+    # Scholarly Context (for educational content)
+    scholarly_context: Optional[ScholarlyContext] = Field(
+        None,
+        description="Scholarly context for educational/academic content"
     )
 
     # Metadata

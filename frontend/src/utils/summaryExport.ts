@@ -1,4 +1,4 @@
-import type { ContentSummaryResult, TechnicalDetail, ContentType } from '@/types'
+import type { ContentSummaryResult, TechnicalDetail, ContentType, ScholarlyContext } from '@/types'
 
 export interface ExportOptions {
   videoTitle?: string
@@ -163,6 +163,97 @@ export function exportToMarkdown(
     })
   }
 
+  // Scholarly Context
+  if (result.scholarly_context) {
+    const ctx = result.scholarly_context
+    const hasContent = ctx.figures.length > 0 || ctx.sources.length > 0 || ctx.debates.length > 0 ||
+      ctx.evidence_types.length > 0 || ctx.methodology.length > 0 || ctx.time_periods.length > 0
+
+    if (hasContent) {
+      lines.push('## Scholarly Context')
+      lines.push('')
+
+      // Figures
+      if (ctx.figures.length > 0) {
+        lines.push('### Historical Figures')
+        lines.push('')
+        ctx.figures.forEach(figure => {
+          let entry = `- **${figure.name}**`
+          if (figure.period) entry += ` (${figure.period})`
+          lines.push(entry)
+          if (figure.role) lines.push(`  - Role: ${figure.role}`)
+          if (figure.relationships) lines.push(`  - Relationships: ${figure.relationships}`)
+          if (figure.significance) lines.push(`  - _${figure.significance}_`)
+        })
+        lines.push('')
+      }
+
+      // Sources
+      if (ctx.sources.length > 0) {
+        lines.push('### Sources & Texts')
+        lines.push('')
+        ctx.sources.forEach(source => {
+          let entry = `- **${source.name}**`
+          if (source.type) entry += ` [${source.type}]`
+          lines.push(entry)
+          if (source.description) lines.push(`  - ${source.description}`)
+          if (source.significance) lines.push(`  - _${source.significance}_`)
+        })
+        lines.push('')
+      }
+
+      // Debates
+      if (ctx.debates.length > 0) {
+        lines.push('### Scholarly Debates')
+        lines.push('')
+        ctx.debates.forEach(debate => {
+          lines.push(`#### ${debate.topic}`)
+          lines.push('')
+          if (debate.positions.length > 0) {
+            lines.push('**Positions:**')
+            debate.positions.forEach(pos => lines.push(`- ${pos}`))
+          }
+          if (debate.evidence) lines.push(`\n**Evidence:** ${debate.evidence}`)
+          if (debate.consensus) lines.push(`\n> **Consensus:** ${debate.consensus}`)
+          lines.push('')
+        })
+      }
+
+      // Evidence Types
+      if (ctx.evidence_types.length > 0) {
+        lines.push('### Types of Evidence')
+        lines.push('')
+        ctx.evidence_types.forEach(evidence => {
+          lines.push(`- **${evidence.type.replace(/_/g, ' ')}**`)
+          evidence.examples.forEach(ex => lines.push(`  - ${ex}`))
+          if (evidence.significance) lines.push(`  - _${evidence.significance}_`)
+        })
+        lines.push('')
+      }
+
+      // Time Periods
+      if (ctx.time_periods.length > 0) {
+        lines.push('### Historical Periods')
+        lines.push('')
+        ctx.time_periods.forEach(period => {
+          let entry = `- **${period.period}**`
+          if (period.dates) entry += ` (${period.dates})`
+          lines.push(entry)
+          if (period.context) lines.push(`  - ${period.context}`)
+        })
+        lines.push('')
+      }
+
+      // Methodology
+      if (ctx.methodology.length > 0) {
+        lines.push('### Analytical Methodology')
+        lines.push('')
+        lines.push(ctx.methodology.map(m => `\`${m}\``).join(' · '))
+        lines.push('')
+      }
+    }
+  }
+
   // Action Items
   if (result.action_items.length > 0) {
     lines.push('## Action Items')
@@ -271,6 +362,75 @@ export function exportToText(
     })
   }
 
+  // Scholarly Context
+  if (result.scholarly_context) {
+    const ctx = result.scholarly_context
+    const hasContent = ctx.figures.length > 0 || ctx.sources.length > 0 || ctx.debates.length > 0 ||
+      ctx.evidence_types.length > 0 || ctx.methodology.length > 0 || ctx.time_periods.length > 0
+
+    if (hasContent) {
+      lines.push('SCHOLARLY CONTEXT')
+      lines.push(subDivider)
+
+      if (ctx.figures.length > 0) {
+        lines.push('[HISTORICAL FIGURES]')
+        ctx.figures.forEach(figure => {
+          lines.push(`  * ${figure.name}${figure.period ? ` (${figure.period})` : ''}`)
+          if (figure.role) lines.push(`      Role: ${figure.role}`)
+          if (figure.relationships) lines.push(`      Relationships: ${figure.relationships}`)
+          if (figure.significance) lines.push(`      ${figure.significance}`)
+        })
+        lines.push('')
+      }
+
+      if (ctx.sources.length > 0) {
+        lines.push('[SOURCES & TEXTS]')
+        ctx.sources.forEach(source => {
+          lines.push(`  * ${source.name}${source.type ? ` [${source.type}]` : ''}`)
+          if (source.description) lines.push(`      ${source.description}`)
+          if (source.significance) lines.push(`      ${source.significance}`)
+        })
+        lines.push('')
+      }
+
+      if (ctx.debates.length > 0) {
+        lines.push('[SCHOLARLY DEBATES]')
+        ctx.debates.forEach(debate => {
+          lines.push(`  * ${debate.topic}`)
+          debate.positions.forEach(pos => lines.push(`      - ${pos}`))
+          if (debate.evidence) lines.push(`      Evidence: ${debate.evidence}`)
+          if (debate.consensus) lines.push(`      Consensus: ${debate.consensus}`)
+        })
+        lines.push('')
+      }
+
+      if (ctx.evidence_types.length > 0) {
+        lines.push('[EVIDENCE TYPES]')
+        ctx.evidence_types.forEach(evidence => {
+          lines.push(`  * ${evidence.type.replace(/_/g, ' ')}`)
+          evidence.examples.forEach(ex => lines.push(`      - ${ex}`))
+          if (evidence.significance) lines.push(`      ${evidence.significance}`)
+        })
+        lines.push('')
+      }
+
+      if (ctx.time_periods.length > 0) {
+        lines.push('[TIME PERIODS]')
+        ctx.time_periods.forEach(period => {
+          lines.push(`  * ${period.period}${period.dates ? ` (${period.dates})` : ''}`)
+          if (period.context) lines.push(`      ${period.context}`)
+        })
+        lines.push('')
+      }
+
+      if (ctx.methodology.length > 0) {
+        lines.push('[METHODOLOGY]')
+        lines.push(`  ${ctx.methodology.join(', ')}`)
+        lines.push('')
+      }
+    }
+  }
+
   // Action Items
   if (result.action_items.length > 0) {
     lines.push('ACTION ITEMS')
@@ -332,6 +492,7 @@ export function exportToJson(
       tldr: result.tldr,
       key_concepts: result.key_concepts,
       technical_details: result.has_technical_content ? result.technical_details : [],
+      scholarly_context: result.scholarly_context || null,
       action_items: result.action_items,
       key_moments: result.key_moments,
       keywords: result.keywords,
@@ -344,7 +505,10 @@ export function exportToJson(
       concepts_count: result.key_concepts.length,
       action_items_count: result.action_items.length,
       technical_details_count: result.technical_details.length,
-      key_moments_count: result.key_moments.length
+      key_moments_count: result.key_moments.length,
+      scholarly_figures_count: result.scholarly_context?.figures.length || 0,
+      scholarly_sources_count: result.scholarly_context?.sources.length || 0,
+      scholarly_debates_count: result.scholarly_context?.debates.length || 0
     }
   }
 

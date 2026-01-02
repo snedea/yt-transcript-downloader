@@ -369,6 +369,50 @@ export interface KeyMoment {
   description: string
 }
 
+// Scholarly Context Types (for educational content)
+export interface ScholarlyFigure {
+  name: string
+  role?: string
+  period?: string
+  relationships?: string
+  significance?: string
+}
+
+export interface ScholarlySource {
+  name: string
+  type?: string
+  description?: string
+  significance?: string
+}
+
+export interface ScholarlyDebate {
+  topic: string
+  positions: string[]
+  evidence?: string
+  consensus?: string
+}
+
+export interface EvidenceType {
+  type: string
+  examples: string[]
+  significance?: string
+}
+
+export interface TimePeriod {
+  period: string
+  dates?: string
+  context?: string
+}
+
+export interface ScholarlyContext {
+  figures: ScholarlyFigure[]
+  sources: ScholarlySource[]
+  debates: ScholarlyDebate[]
+  evidence_types: EvidenceType[]
+  methodology: string[]
+  time_periods: TimePeriod[]
+}
+
 export interface ContentSummaryResult {
   // Content Type Detection
   content_type: ContentType
@@ -388,6 +432,9 @@ export interface ContentSummaryResult {
 
   // Timestamps
   key_moments: KeyMoment[]
+
+  // Scholarly Context (for educational content)
+  scholarly_context?: ScholarlyContext
 
   // Metadata
   tokens_used: number

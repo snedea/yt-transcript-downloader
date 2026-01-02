@@ -23,12 +23,18 @@ from app.models.summary_analysis import (
     TechnicalDetail,
     ActionItem,
     KeyMoment,
+    ScholarlyContext,
+    ScholarlyFigure,
+    ScholarlySource,
+    ScholarlyDebate,
+    EvidenceType,
+    TimePeriod,
 )
 
 logger = logging.getLogger(__name__)
 
 
-SUMMARY_SYSTEM_PROMPT = """You are an expert content analyst specializing in extracting structured, actionable information from video transcripts. Your goal is to create comprehensive summaries optimized for note-taking and knowledge management.
+SUMMARY_SYSTEM_PROMPT = """You are an expert content analyst with deep expertise in academic research, source criticism, and scholarly analysis. Your goal is to extract CURRICULUM-GRADE summaries that capture not just surface-level content, but the scholarly depth, debates, and nuances presented.
 
 ## CONTENT TYPE DETECTION
 
@@ -36,7 +42,7 @@ First, identify the content type from these categories:
 - programming_technical: Code tutorials, software development, tech explanations, system design
 - tutorial_howto: Step-by-step guides, DIY instructions, how-to content
 - news_current_events: News coverage, current events discussion, breaking stories
-- educational: Academic content, concept explanations, learning material
+- educational: Academic content, concept explanations, learning material, lectures, documentaries
 - entertainment: Comedy, storytelling, vlogs, lifestyle content
 - discussion_opinion: Debates, opinion pieces, commentary, analysis
 - review: Product/service/media reviews, comparisons
@@ -46,11 +52,42 @@ First, identify the content type from these categories:
 ## EXTRACTION GUIDELINES
 
 ### For ALL content types:
-1. TLDR: Write 2-3 clear sentences that capture the main message
-2. Key Concepts: Extract 3-7 main ideas, each with a brief explanation
+1. TLDR: Write 2-3 clear sentences that capture the THESIS and main argument, not just the topic
+2. Key Concepts: Extract 5-10 main ideas with DETAILED explanations (2-3 sentences each)
 3. Action Items: List practical takeaways the viewer should remember or do
-4. Keywords: Generate 5-15 tags (lowercase, no spaces, use underscores)
-5. Key Moments: Identify 3-5 significant points with approximate timestamps
+4. Keywords: Generate 10-20 tags (lowercase, spaces allowed)
+5. Key Moments: Identify 5-8 significant points with approximate timestamps
+
+### For educational content, extract WITH SCHOLARLY DEPTH:
+
+#### Named Figures & Relationships:
+- List ALL named individuals (historical figures, scholars, authors)
+- Include their relationships to each other (e.g., "Jonathan - David's close friend/ally")
+- Note their roles, titles, and significance
+- Include dates/periods when mentioned
+
+#### Source Criticism & Debates:
+- What sources or texts are discussed? (e.g., "Deuteronomistic History", "Dead Sea Scrolls")
+- What scholarly debates are presented? (e.g., "historicity vs. literary construction")
+- What different scholarly positions exist? Name them explicitly
+- What evidence supports each position?
+
+#### Historical Context:
+- Time periods discussed with approximate dates
+- Geographic locations and their significance
+- Political/social context of the era
+- How modern understanding differs from traditional views
+
+#### Evidence Types Mentioned:
+- Archaeological evidence (sites, artifacts, inscriptions)
+- Textual evidence (manuscripts, translations, redactions)
+- Linguistic evidence (word origins, literary analysis)
+- Comparative evidence (parallel texts, similar traditions)
+
+#### Methodological Approaches:
+- What analytical methods does the presenter use?
+- Source criticism, form criticism, redaction criticism?
+- Historical-critical method vs. literary approaches?
 
 ### For programming_technical content, ALSO extract:
 - Code snippets mentioned or demonstrated
@@ -58,6 +95,7 @@ First, identify the content type from these categories:
 - Commands (terminal, git, npm, pip, etc.)
 - Tools and APIs referenced
 - Programming concepts explained
+- Architecture decisions and trade-offs
 
 ### For tutorial_howto content, ALSO focus on:
 - Step-by-step instructions
@@ -66,16 +104,85 @@ First, identify the content type from these categories:
 - Tips and best practices
 
 ### For news_current_events content, ALSO extract:
-- Key facts and claims
+- Key facts and claims with sources
 - Names, dates, and locations
-- Sources mentioned
 - Different perspectives presented
+- What's contested vs. established
 
-### For educational content, ALSO focus on:
-- Core concepts and definitions
-- Examples and analogies used
-- Prerequisites mentioned
-- Related topics for further learning
+### For discussion_opinion content, ALSO extract:
+- Main thesis/argument being made
+- Evidence cited to support claims
+- Counter-arguments acknowledged
+- Logical structure of the argument
+
+## SCHOLARLY CONTENT SPECIAL INSTRUCTIONS
+
+When analyzing educational content about history, religion, philosophy, or academic subjects:
+
+1. DO NOT oversimplify - capture the nuance and complexity
+2. EXPLICITLY list all named figures with brief identifiers
+3. IDENTIFY scholarly debates and different schools of thought
+4. NOTE what evidence types support different claims
+5. DISTINGUISH between what the presenter states as fact vs. scholarly consensus vs. contested
+6. CAPTURE methodological approaches used in the analysis
+7. INCLUDE specific examples, case studies, or textual citations mentioned
+
+## CRITICAL: SOURCES AND DEBATES ARE MANDATORY
+
+For educational content, you MUST populate the scholarly_context.sources and scholarly_context.debates arrays. These are NOT optional.
+
+### SOURCES - What to look for:
+Sources are ANY texts, documents, manuscripts, or scholarly works mentioned or implied:
+- **Biblical/Religious**: Book names (Genesis, Psalms, Gospel of Mark), manuscript traditions (Masoretic Text, Septuagint, Dead Sea Scrolls)
+- **Historical Documents**: Chronicles, king lists, inscriptions, letters, treaties
+- **Scholarly Works**: Named theories (Documentary Hypothesis, Deuteronomistic History), academic consensus positions
+- **Archaeological**: Site reports, artifact catalogs, excavation findings
+- **Primary vs Secondary**: Note if the source is ancient/primary or modern/scholarly
+
+Example sources to extract:
+- "Book of Samuel" [type: biblical text] - Primary narrative source for David's life
+- "Deuteronomistic History" [type: scholarly theory] - The theory that Deuteronomy-2 Kings was edited by a single school
+- "Tel Dan Stele" [type: archaeological] - 9th century BCE inscription mentioning "House of David"
+- "Psalms" [type: biblical text] - Traditional attribution to David, modern scholarship debates authorship
+
+### DEBATES - What to look for:
+A debate exists whenever the presenter mentions ANY of these patterns:
+- "Some scholars think X, while others argue Y"
+- "Traditional view vs. modern scholarship"
+- "The question of whether..."
+- "Debate over the historicity of..."
+- "Minimalist vs. maximalist positions"
+- "Dating controversies"
+- "Authorship questions"
+- Implicit disagreements between sources
+
+Example debates to extract:
+- Topic: "Historicity of King David"
+  Positions: ["Maximalists argue David was a powerful king as described", "Minimalists view David as a minor chieftain or legendary figure", "Moderate position accepts historical core with literary embellishment"]
+  Evidence: "Tel Dan Stele provides external evidence; lack of monumental architecture challenges grand kingdom narrative"
+
+- Topic: "Authorship of Psalms"
+  Positions: ["Traditional view: David wrote the Psalms attributed to him", "Critical view: Many 'Davidic' psalms are post-exilic compositions"]
+  Evidence: "Linguistic analysis, historical references within psalms, superscription traditions"
+
+- Topic: "Nature of David-Jonathan relationship"
+  Positions: ["Political covenant/alliance interpretation", "Deep personal friendship", "Romantic relationship interpretation"]
+  Evidence: "Hebrew term 'ahava', covenant language, narrative context"
+
+### IF NO EXPLICIT DEBATES MENTIONED:
+Even if the presenter doesn't explicitly frame something as a "debate", extract IMPLIED scholarly tensions:
+- If they present "the traditional view" vs "what we now know" = that's a debate
+- If they say "scholars disagree" or "it's uncertain" = that's a debate
+- If they present multiple interpretations = that's a debate
+- If they question conventional wisdom = that's a debate
+
+Example of GOOD scholarly extraction:
+- "Deuteronomistic History: The scholarly theory that Deuteronomy through 2 Kings were composed/edited by a single school during the Babylonian exile (6th century BCE), giving a theological interpretation of Israel's history"
+- "David-Jonathan relationship: Presented as deep friendship/covenant bond; some scholars interpret the Hebrew 'ahava' (love) as political treaty language, others as genuine affection"
+
+Example of BAD superficial extraction:
+- "The video discusses King David"
+- "David had friends"
 
 ## TIMESTAMP HANDLING
 - Estimate timestamps based on position in transcript
@@ -83,8 +190,8 @@ First, identify the content type from these categories:
 - If transcript has timing data, try to correlate
 
 ## OUTPUT FORMAT
-Return a JSON object with ALL required fields. Be thorough but concise.
-Focus on extracting ACTIONABLE and MEMORABLE information."""
+Return a JSON object with ALL required fields. Be THOROUGH - err on the side of including more detail.
+For educational content, include scholarly_context object with figures, sources, debates, evidence, and methodology."""
 
 
 JSON_SCHEMA = {
@@ -157,6 +264,79 @@ JSON_SCHEMA = {
                     "description": {"type": "string"}
                 },
                 "required": ["timestamp", "title", "description"]
+            }
+        },
+        "scholarly_context": {
+            "type": ["object", "null"],
+            "properties": {
+                "figures": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string"},
+                            "role": {"type": ["string", "null"]},
+                            "period": {"type": ["string", "null"]},
+                            "relationships": {"type": ["string", "null"]},
+                            "significance": {"type": ["string", "null"]}
+                        },
+                        "required": ["name"]
+                    }
+                },
+                "sources": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string"},
+                            "type": {"type": ["string", "null"]},
+                            "description": {"type": ["string", "null"]},
+                            "significance": {"type": ["string", "null"]}
+                        },
+                        "required": ["name"]
+                    }
+                },
+                "debates": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "topic": {"type": "string"},
+                            "positions": {"type": "array", "items": {"type": "string"}},
+                            "evidence": {"type": ["string", "null"]},
+                            "consensus": {"type": ["string", "null"]}
+                        },
+                        "required": ["topic"]
+                    }
+                },
+                "evidence_types": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "type": {"type": "string"},
+                            "examples": {"type": "array", "items": {"type": "string"}},
+                            "significance": {"type": ["string", "null"]}
+                        },
+                        "required": ["type"]
+                    }
+                },
+                "methodology": {
+                    "type": "array",
+                    "items": {"type": "string"}
+                },
+                "time_periods": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "period": {"type": "string"},
+                            "dates": {"type": ["string", "null"]},
+                            "context": {"type": ["string", "null"]}
+                        },
+                        "required": ["period"]
+                    }
+                }
             }
         }
     },
@@ -246,9 +426,18 @@ class ContentSummaryService:
 
 {transcript_with_times}
 
-Return a JSON object with: content_type, content_type_confidence, content_type_reasoning, tldr, key_concepts, technical_details (if applicable), action_items, keywords, and key_moments.
+Return a JSON object with: content_type, content_type_confidence, content_type_reasoning, tldr, key_concepts, technical_details (if applicable), action_items, keywords, key_moments, and scholarly_context (for educational content).
 
-IMPORTANT: For key_moments timestamps, use the [M:SS] markers in the transcript to estimate when each moment occurs. Convert to seconds (e.g., [2:30] = 150 seconds). Distribute moments across the video duration."""
+IMPORTANT:
+1. For key_moments timestamps, use the [M:SS] markers in the transcript to estimate when each moment occurs. Convert to seconds (e.g., [2:30] = 150 seconds). Distribute moments across the video duration.
+2. For educational/scholarly content, populate the scholarly_context object with: figures (named individuals), sources (texts/manuscripts discussed), debates (scholarly disagreements), evidence_types (archaeological, textual, etc.), methodology (analytical approaches used), and time_periods (historical eras discussed).
+3. Be THOROUGH with key_concepts - extract 5-10 concepts with detailed 2-3 sentence explanations each.
+
+CRITICAL FOR EDUCATIONAL CONTENT:
+- scholarly_context.sources MUST contain at least 3-5 sources (biblical books, historical documents, scholarly theories, archaeological findings mentioned)
+- scholarly_context.debates MUST contain at least 2-3 debates (any scholarly disagreements, traditional vs modern views, interpretation disputes)
+- If a source or debate seems implied but not explicit, INCLUDE IT with a note that it's implied
+- Look for patterns like "some argue", "traditionally believed", "modern scholarship suggests", "the question of" - these indicate debates"""
 
         try:
             response = self.client.chat.completions.create(
@@ -297,6 +486,11 @@ IMPORTANT: For key_moments timestamps, use the [M:SS] markers in the transcript 
             # Parse key moments
             key_moments = self._parse_key_moments(data.get("key_moments") or [])
 
+            # Parse scholarly context (for educational content)
+            scholarly_context = self._parse_scholarly_context(
+                data.get("scholarly_context")
+            )
+
             # Correlate timestamps with transcript_data if available
             if request.transcript_data:
                 self._correlate_timestamps(
@@ -317,6 +511,7 @@ IMPORTANT: For key_moments timestamps, use the [M:SS] markers in the transcript 
                 keywords=keywords,
                 suggested_obsidian_tags=obsidian_tags,
                 key_moments=key_moments,
+                scholarly_context=scholarly_context,
                 tokens_used=tokens_used,
                 analysis_duration_seconds=round(duration, 2),
                 transcript_word_count=word_count
@@ -424,6 +619,86 @@ IMPORTANT: For key_moments timestamps, use the [M:SS] markers in the transcript 
             ))
 
         return moments
+
+    def _parse_scholarly_context(
+        self, context_data: Optional[dict]
+    ) -> Optional[ScholarlyContext]:
+        """Parse scholarly context from GPT response."""
+        if not context_data or not isinstance(context_data, dict):
+            return None
+
+        # Parse figures
+        figures = []
+        for f in context_data.get("figures") or []:
+            if isinstance(f, dict):
+                figures.append(ScholarlyFigure(
+                    name=f.get("name", ""),
+                    role=f.get("role"),
+                    period=f.get("period"),
+                    relationships=f.get("relationships"),
+                    significance=f.get("significance")
+                ))
+
+        # Parse sources
+        sources = []
+        for s in context_data.get("sources") or []:
+            if isinstance(s, dict):
+                sources.append(ScholarlySource(
+                    name=s.get("name", ""),
+                    type=s.get("type"),
+                    description=s.get("description"),
+                    significance=s.get("significance")
+                ))
+
+        # Parse debates
+        debates = []
+        for d in context_data.get("debates") or []:
+            if isinstance(d, dict):
+                debates.append(ScholarlyDebate(
+                    topic=d.get("topic", ""),
+                    positions=d.get("positions") or [],
+                    evidence=d.get("evidence"),
+                    consensus=d.get("consensus")
+                ))
+
+        # Parse evidence types
+        evidence_types = []
+        for e in context_data.get("evidence_types") or []:
+            if isinstance(e, dict):
+                evidence_types.append(EvidenceType(
+                    type=e.get("type", ""),
+                    examples=e.get("examples") or [],
+                    significance=e.get("significance")
+                ))
+
+        # Parse methodology
+        methodology = context_data.get("methodology") or []
+        if not isinstance(methodology, list):
+            methodology = []
+        methodology = [str(m) for m in methodology if m]
+
+        # Parse time periods
+        time_periods = []
+        for t in context_data.get("time_periods") or []:
+            if isinstance(t, dict):
+                time_periods.append(TimePeriod(
+                    period=t.get("period", ""),
+                    dates=t.get("dates"),
+                    context=t.get("context")
+                ))
+
+        # Only return if we have at least some data
+        if not any([figures, sources, debates, evidence_types, methodology, time_periods]):
+            return None
+
+        return ScholarlyContext(
+            figures=figures,
+            sources=sources,
+            debates=debates,
+            evidence_types=evidence_types,
+            methodology=methodology,
+            time_periods=time_periods
+        )
 
     def _correlate_timestamps(
         self,

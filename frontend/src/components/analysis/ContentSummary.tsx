@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import type { ContentSummaryResult, ContentType, TechnicalDetail, KeyConcept, SummaryActionItem, KeyMoment } from '@/types'
+import type { ContentSummaryResult, ContentType, TechnicalDetail, KeyConcept, SummaryActionItem, KeyMoment, ScholarlyContext } from '@/types'
 import {
   downloadAsMarkdown,
   downloadAsText,
@@ -17,9 +17,11 @@ interface ContentSummaryProps {
   videoUrl?: string
   videoId?: string
   isCached?: boolean
+  onReanalyze?: () => void
+  isReanalyzing?: boolean
 }
 
-type TabType = 'overview' | 'concepts' | 'technical' | 'actions' | 'moments'
+type TabType = 'overview' | 'concepts' | 'scholarly' | 'technical' | 'actions' | 'moments'
 
 // Content type display info
 const CONTENT_TYPE_INFO: Record<ContentType, { label: string; icon: string; color: string }> = {
@@ -57,7 +59,9 @@ export function ContentSummary({
   videoAuthor,
   videoUrl,
   videoId,
-  isCached
+  isCached,
+  onReanalyze,
+  isReanalyzing
 }: ContentSummaryProps) {
   const [activeTab, setActiveTab] = useState<TabType>('overview')
   const [copied, setCopied] = useState(false)
@@ -80,10 +84,21 @@ export function ContentSummary({
     }
   }
 
+  // Check if scholarly context has content
+  const hasScholarlyContent = !!(result.scholarly_context && (
+    result.scholarly_context.figures.length > 0 ||
+    result.scholarly_context.sources.length > 0 ||
+    result.scholarly_context.debates.length > 0 ||
+    result.scholarly_context.evidence_types.length > 0 ||
+    result.scholarly_context.methodology.length > 0 ||
+    result.scholarly_context.time_periods.length > 0
+  ))
+
   // Build tabs dynamically based on available content
   const allTabs: { id: TabType; label: string; icon: string; available: boolean }[] = [
     { id: 'overview' as const, label: 'Overview', icon: '📊', available: true },
     { id: 'concepts' as const, label: 'Concepts', icon: '💡', available: result.key_concepts.length > 0 },
+    { id: 'scholarly' as const, label: 'Scholarly', icon: '📚', available: hasScholarlyContent },
     { id: 'technical' as const, label: 'Technical', icon: '💻', available: result.has_technical_content },
     { id: 'actions' as const, label: 'Actions', icon: '✅', available: result.action_items.length > 0 },
     { id: 'moments' as const, label: 'Moments', icon: '⏱️', available: result.key_moments.length > 0 }
@@ -118,6 +133,26 @@ export function ContentSummary({
 
           {/* Export Buttons */}
           <div className="flex items-center gap-2">
+            {onReanalyze && (
+              <button
+                onClick={onReanalyze}
+                disabled={isReanalyzing}
+                className="bg-white/20 hover:bg-white/30 disabled:bg-white/10 disabled:cursor-not-allowed text-white text-sm px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+                title="Re-run analysis with latest prompts"
+              >
+                {isReanalyzing ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Analyzing...
+                  </>
+                ) : (
+                  '🔄 Re-analyze'
+                )}
+              </button>
+            )}
             <button
               onClick={handleCopyMarkdown}
               className="bg-white/20 hover:bg-white/30 text-white text-sm px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
@@ -205,6 +240,9 @@ export function ContentSummary({
         )}
         {activeTab === 'concepts' && (
           <ConceptsTab concepts={result.key_concepts} videoUrl={videoUrl} />
+        )}
+        {activeTab === 'scholarly' && result.scholarly_context && (
+          <ScholarlyTab context={result.scholarly_context} />
         )}
         {activeTab === 'technical' && (
           <TechnicalTab details={result.technical_details} videoUrl={videoUrl} />
@@ -497,6 +535,230 @@ function MomentsTab({ moments, videoUrl }: { moments: KeyMoment[]; videoUrl?: st
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+function ScholarlyTab({ context }: { context: ScholarlyContext }) {
+  const totalItems =
+    context.figures.length +
+    context.sources.length +
+    context.debates.length +
+    context.evidence_types.length +
+    context.methodology.length +
+    context.time_periods.length
+
+  return (
+    <div className="space-y-6">
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+        {totalItems} scholarly elements extracted from educational content
+      </p>
+
+      {/* Historical Figures */}
+      {context.figures.length > 0 && (
+        <div>
+          <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-3 flex items-center gap-2">
+            <span>👤</span> Historical Figures & Named Individuals
+          </h4>
+          <div className="grid md:grid-cols-2 gap-3">
+            {context.figures.map((figure, idx) => (
+              <div
+                key={idx}
+                className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800"
+              >
+                <div className="font-medium text-purple-800 dark:text-purple-200">
+                  {figure.name}
+                  {figure.period && (
+                    <span className="ml-2 text-xs font-normal text-purple-600 dark:text-purple-400">
+                      ({figure.period})
+                    </span>
+                  )}
+                </div>
+                {figure.role && (
+                  <p className="text-sm text-purple-700 dark:text-purple-300 mt-1">
+                    <span className="font-medium">Role:</span> {figure.role}
+                  </p>
+                )}
+                {figure.relationships && (
+                  <p className="text-sm text-purple-700 dark:text-purple-300 mt-1">
+                    <span className="font-medium">Relationships:</span> {figure.relationships}
+                  </p>
+                )}
+                {figure.significance && (
+                  <p className="text-sm text-purple-600 dark:text-purple-400 mt-1 italic">
+                    {figure.significance}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Sources & Texts */}
+      {context.sources.length > 0 && (
+        <div>
+          <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-3 flex items-center gap-2">
+            <span>📜</span> Sources & Texts Discussed
+          </h4>
+          <div className="space-y-2">
+            {context.sources.map((source, idx) => (
+              <div
+                key={idx}
+                className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800"
+              >
+                <div className="font-medium text-amber-800 dark:text-amber-200 flex items-center gap-2">
+                  {source.name}
+                  {source.type && (
+                    <span className="text-xs bg-amber-200 dark:bg-amber-800 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded">
+                      {source.type}
+                    </span>
+                  )}
+                </div>
+                {source.description && (
+                  <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                    {source.description}
+                  </p>
+                )}
+                {source.significance && (
+                  <p className="text-sm text-amber-600 dark:text-amber-400 mt-1 italic">
+                    {source.significance}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Scholarly Debates */}
+      {context.debates.length > 0 && (
+        <div>
+          <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-3 flex items-center gap-2">
+            <span>⚖️</span> Scholarly Debates & Contested Topics
+          </h4>
+          <div className="space-y-3">
+            {context.debates.map((debate, idx) => (
+              <div
+                key={idx}
+                className="p-4 bg-rose-50 dark:bg-rose-900/20 rounded-lg border border-rose-200 dark:border-rose-800"
+              >
+                <div className="font-medium text-rose-800 dark:text-rose-200 mb-2">
+                  {debate.topic}
+                </div>
+                {debate.positions.length > 0 && (
+                  <div className="mb-2">
+                    <span className="text-sm font-medium text-rose-700 dark:text-rose-300">Positions:</span>
+                    <ul className="mt-1 space-y-1">
+                      {debate.positions.map((position, pidx) => (
+                        <li key={pidx} className="text-sm text-rose-600 dark:text-rose-400 flex items-start gap-2">
+                          <span className="text-rose-400">•</span>
+                          {position}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {debate.evidence && (
+                  <p className="text-sm text-rose-700 dark:text-rose-300 mt-2">
+                    <span className="font-medium">Evidence:</span> {debate.evidence}
+                  </p>
+                )}
+                {debate.consensus && (
+                  <p className="text-sm text-rose-600 dark:text-rose-400 mt-1 italic">
+                    <span className="font-medium not-italic">Consensus:</span> {debate.consensus}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Evidence Types */}
+      {context.evidence_types.length > 0 && (
+        <div>
+          <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-3 flex items-center gap-2">
+            <span>🔍</span> Types of Evidence Presented
+          </h4>
+          <div className="grid md:grid-cols-2 gap-3">
+            {context.evidence_types.map((evidence, idx) => (
+              <div
+                key={idx}
+                className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800"
+              >
+                <div className="font-medium text-blue-800 dark:text-blue-200 capitalize">
+                  {evidence.type.replace(/_/g, ' ')}
+                </div>
+                {evidence.examples.length > 0 && (
+                  <ul className="mt-1 space-y-0.5">
+                    {evidence.examples.map((example, eidx) => (
+                      <li key={eidx} className="text-sm text-blue-600 dark:text-blue-400 flex items-start gap-1">
+                        <span>-</span> {example}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {evidence.significance && (
+                  <p className="text-sm text-blue-500 dark:text-blue-500 mt-1 italic">
+                    {evidence.significance}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Time Periods */}
+      {context.time_periods.length > 0 && (
+        <div>
+          <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-3 flex items-center gap-2">
+            <span>🕰️</span> Historical Periods
+          </h4>
+          <div className="flex flex-wrap gap-2">
+            {context.time_periods.map((period, idx) => (
+              <div
+                key={idx}
+                className="p-3 bg-teal-50 dark:bg-teal-900/20 rounded-lg border border-teal-200 dark:border-teal-800"
+              >
+                <div className="font-medium text-teal-800 dark:text-teal-200">
+                  {period.period}
+                  {period.dates && (
+                    <span className="ml-2 text-xs font-normal text-teal-600 dark:text-teal-400">
+                      {period.dates}
+                    </span>
+                  )}
+                </div>
+                {period.context && (
+                  <p className="text-sm text-teal-600 dark:text-teal-400 mt-1">
+                    {period.context}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Methodology */}
+      {context.methodology.length > 0 && (
+        <div>
+          <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-3 flex items-center gap-2">
+            <span>🔬</span> Analytical Methodology
+          </h4>
+          <div className="flex flex-wrap gap-2">
+            {context.methodology.map((method, idx) => (
+              <span
+                key={idx}
+                className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-3 py-1.5 rounded-lg text-sm"
+              >
+                {method}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
