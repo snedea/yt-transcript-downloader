@@ -5,7 +5,6 @@ Uses Claude CLI with vision capabilities to analyze video frames for
 observable health-related features. This is an EDUCATIONAL tool only.
 """
 
-import base64
 import json
 import logging
 import subprocess
@@ -157,18 +156,14 @@ class HealthAnalyzer:
         """
         Analyze a single frame using Claude vision.
 
-        Uses base64-encoded image in the prompt for vision analysis.
+        Uses Claude CLI with file path - Claude Code can read images directly.
         """
         if not self.claude_path:
             logger.error("Claude CLI not available")
             return None
 
         try:
-            # Read and encode image as base64
-            with open(frame_path, "rb") as f:
-                image_data = base64.b64encode(f.read()).decode("utf-8")
-
-            # Format the prompt
+            # Format the prompt with absolute file path for Claude to read
             regions_str = ", ".join(r.value for r in body_regions) if body_regions else "unknown"
             formatted_time = format_timestamp(timestamp)
 
@@ -179,27 +174,31 @@ class HealthAnalyzer:
                 video_title=video_title or "Unknown"
             )
 
-            # Build command with image attachment
-            # Claude CLI supports images via base64 data URLs in the prompt
-            image_prompt = f"[Image data: data:image/jpeg;base64,{image_data}]\n\n{prompt}"
+            # Instruct Claude to read the image file directly
+            # Claude Code's Read tool can handle image files natively
+            full_prompt = f"""Please analyze the image at this path: {frame_path}
+
+Read the image file and then provide your analysis.
+
+{prompt}"""
 
             cmd = [
                 self.claude_path,
                 "--print",
                 "--permission-mode", "bypassPermissions",
-                "--strict-mcp-config",
                 "--model", "claude-sonnet-4-20250514",  # Sonnet for vision (faster, cheaper)
-                "--max-turns", "1",
+                "--max-turns", "3",  # Allow turns for: read image -> analyze -> respond
+                "--allowedTools", "Read",  # Only allow Read tool for image access
             ]
 
             logger.debug(f"Analyzing frame at {formatted_time}...")
 
             result = subprocess.run(
                 cmd,
-                input=image_prompt,
+                input=full_prompt,
                 capture_output=True,
                 text=True,
-                timeout=120  # 2 minute timeout per frame
+                timeout=180  # 3 minute timeout per frame (needs to read + analyze)
             )
 
             if result.returncode != 0:
