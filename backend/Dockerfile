@@ -2,10 +2,13 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies including Node.js for Claude CLI
+# Install system dependencies including Node.js for Claude CLI and ffmpeg for frame extraction
 RUN apt-get update && apt-get install -y \
     curl \
     gnupg \
+    ffmpeg \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*

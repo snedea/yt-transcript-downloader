@@ -22,7 +22,9 @@ import type {
   ContentSourceType,
   UnifiedContent,
   ContentExtractionRequest,
-  ContentUploadResponse
+  ContentUploadResponse,
+  HealthObservationResult,
+  HealthObservationRequest
 } from '@/types'
 
 // Use relative URLs (empty string) when NEXT_PUBLIC_API_URL is not set or empty
@@ -110,6 +112,7 @@ export interface LibraryItem {
   has_manipulation: boolean  // trust analysis v2.0
   has_rhetorical: boolean    // rhetorical analysis v1.0
   has_discovery: boolean     // discovery analysis (Kinoshita pattern)
+  has_health: boolean        // health observations (visual analysis)
   analysis_type: 'manipulation' | 'rhetorical' | 'both' | null
   content_type: string | null
   keywords: string[]
@@ -600,5 +603,76 @@ export const discoveryCacheApi = {
       }
       throw error
     }
+  }
+}
+
+/**
+ * Health Observations API for video frame analysis
+ * EDUCATIONAL TOOL ONLY - NOT MEDICAL ADVICE
+ */
+export const healthApi = {
+  /**
+   * Analyze a video for health observations
+   * Extracts frames, filters for human presence, analyzes with Claude vision
+   */
+  analyzeHealth: async (
+    videoUrl: string,
+    options?: {
+      videoId?: string
+      videoTitle?: string
+      intervalSeconds?: number
+      maxFrames?: number
+      skipIfCached?: boolean
+    }
+  ): Promise<HealthObservationResult> => {
+    const response = await api.post<HealthObservationResult>('/api/health/observations', {
+      video_url: videoUrl,
+      video_id: options?.videoId,
+      video_title: options?.videoTitle,
+      interval_seconds: options?.intervalSeconds ?? 30,
+      max_frames: options?.maxFrames ?? 20,
+      skip_if_cached: options?.skipIfCached ?? true
+    })
+    return response.data
+  },
+
+  /**
+   * Get cached health observations for a video
+   */
+  getHealthObservations: async (videoId: string): Promise<HealthObservationResult | null> => {
+    try {
+      const response = await api.get<HealthObservationResult>(`/api/health/observations/${videoId}`)
+      return response.data
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return null
+      }
+      throw error
+    }
+  },
+
+  /**
+   * Check health analysis service status
+   */
+  getStatus: async (): Promise<{
+    status: 'ready' | 'unavailable'
+    claude_cli_available: boolean
+    disclaimer: string
+    message: string
+  }> => {
+    const response = await api.get('/api/health/status')
+    return response.data
+  },
+
+  /**
+   * Get the full health observation disclaimer
+   */
+  getDisclaimer: async (): Promise<{
+    disclaimer: string
+    version: string
+    important_notes: string[]
+  }> => {
+    const response = await api.get('/api/health/disclaimer')
+    return response.data
   }
 }

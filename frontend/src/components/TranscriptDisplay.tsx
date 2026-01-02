@@ -10,10 +10,12 @@ import { RhetoricalAnalysis } from '@/components/analysis/RhetoricalAnalysis'
 import { ManipulationAnalysis } from '@/components/analysis/ManipulationAnalysis'
 import { ContentSummary } from '@/components/analysis/ContentSummary'
 import { DiscoveryMode } from '@/components/analysis/DiscoveryMode'
+import { HealthObservations } from '@/components/analysis/HealthObservations'
 import { AnalysisModeSelector, AnalysisProgressBar, CompactModeSelector } from '@/components/analysis/AnalysisModeSelector'
-import type { TranscriptSegment, AnalysisMode, DiscoveryResult } from '@/types'
+import { healthApi } from '@/services/api'
+import type { TranscriptSegment, AnalysisMode, DiscoveryResult, HealthObservationResult } from '@/types'
 
-type AnalysisType = 'rhetorical' | 'manipulation' | 'summary' | 'discovery'
+type AnalysisType = 'rhetorical' | 'manipulation' | 'summary' | 'discovery' | 'health'
 
 interface TranscriptDisplayProps {
   transcript: string
@@ -36,6 +38,9 @@ interface TranscriptDisplayProps {
   // Discovery analysis (Kinoshita Pattern)
   cachedDiscovery?: import('@/types').DiscoveryResult
   discoveryDate?: string
+  // Health observations (visual analysis)
+  cachedHealth?: import('@/types').HealthObservationResult
+  healthDate?: string
 }
 
 export default function TranscriptDisplay({
@@ -54,7 +59,9 @@ export default function TranscriptDisplay({
   cachedSummary,
   summaryDate,
   cachedDiscovery,
-  discoveryDate
+  discoveryDate,
+  cachedHealth,
+  healthDate
 }: TranscriptDisplayProps) {
   const [copied, setCopied] = useState(false)
   const [showAnalysis, setShowAnalysis] = useState(cachedAnalysis || cachedManipulation || cachedSummary || cachedDiscovery ? true : false)
@@ -110,6 +117,24 @@ export default function TranscriptDisplay({
     reset: resetDiscovery
   } = useDiscovery()
 
+  // Health observations state (v5.0)
+  const [healthLoading, setHealthLoading] = useState(false)
+  const [healthError, setHealthError] = useState<string | null>(null)
+  const [healthResult, setHealthResult] = useState<HealthObservationResult | null>(null)
+  const [isHealthCached, setIsHealthCached] = useState(false)
+
+  const resetHealth = () => {
+    setHealthLoading(false)
+    setHealthError(null)
+    setHealthResult(null)
+    setIsHealthCached(false)
+  }
+
+  const setHealthFromCache = (result: HealthObservationResult) => {
+    setHealthResult(result)
+    setIsHealthCached(true)
+  }
+
   // Combined state
   const analyzing = analysisType === 'rhetorical'
     ? rhetoricalLoading
@@ -117,6 +142,8 @@ export default function TranscriptDisplay({
     ? manipulationLoading
     : analysisType === 'discovery'
     ? discoveryLoading
+    : analysisType === 'health'
+    ? healthLoading
     : summaryLoading
   const analysisError = analysisType === 'rhetorical'
     ? rhetoricalError
@@ -124,6 +151,8 @@ export default function TranscriptDisplay({
     ? manipulationError
     : analysisType === 'discovery'
     ? discoveryError
+    : analysisType === 'health'
+    ? healthError
     : summaryError
 
   // Reset analysis state when video changes
@@ -132,6 +161,7 @@ export default function TranscriptDisplay({
     resetManipulation()
     resetSummary()
     resetDiscovery()
+    resetHealth()
     setShowAnalysis(false)
   }, [videoId, resetRhetorical, resetManipulation, resetSummary, resetDiscovery])
 
@@ -167,11 +197,17 @@ export default function TranscriptDisplay({
       hasAnyCached = true
     }
 
+    // Load cached health observations (v5.0)
+    if (cachedHealth) {
+      setHealthFromCache(cachedHealth)
+      hasAnyCached = true
+    }
+
     if (hasAnyCached) {
       setAnalysisType(defaultType)
       setShowAnalysis(true)
     }
-  }, [videoId, cachedAnalysis, cachedManipulation, cachedSummary, cachedDiscovery, setRhetoricalFromCache, setManipulationFromCache, setSummaryFromCache, setDiscoveryFromCache])
+  }, [videoId, cachedAnalysis, cachedManipulation, cachedSummary, cachedDiscovery, cachedHealth, setRhetoricalFromCache, setManipulationFromCache, setSummaryFromCache, setDiscoveryFromCache])
 
   const handleCopy = async () => {
     const success = await copyToClipboard(transcript)
@@ -219,6 +255,26 @@ export default function TranscriptDisplay({
       await analyzeDiscovery(videoId, {
         videoId
       })
+    } else if (analysisType === 'health') {
+      // Health Observations
+      setHealthLoading(true)
+      setHealthError(null)
+      try {
+        const videoUrl = `https://youtube.com/watch?v=${videoId}`
+        const result = await healthApi.analyzeHealth(videoUrl, {
+          videoId,
+          videoTitle,
+          intervalSeconds: 30,
+          maxFrames: 20,
+          skipIfCached: false  // Force fresh analysis
+        })
+        setHealthResult(result)
+        setIsHealthCached(false)
+      } catch (err: any) {
+        setHealthError(err.response?.data?.detail || err.message || 'Health analysis failed')
+      } finally {
+        setHealthLoading(false)
+      }
     } else {
       // Content Summary
       const videoUrl = videoId ? `https://youtube.com/watch?v=${videoId}` : undefined
@@ -237,6 +293,7 @@ export default function TranscriptDisplay({
     resetManipulation()
     resetSummary()
     resetDiscovery()
+    resetHealth()
   }
 
   // Re-analyze summary with fresh API call (bypasses cache)
@@ -381,9 +438,24 @@ export default function TranscriptDisplay({
                   🔬 Discovery
                   {discoveryResult && <span className="absolute -top-1 -right-1 w-2 h-2 bg-purple-500 rounded-full" />}
                 </button>
+                <button
+                  onClick={() => {
+                    setAnalysisType('health')
+                    setShowModeSelector(false)
+                    if (healthResult) setShowAnalysis(true)
+                  }}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all relative ${
+                    analysisType === 'health'
+                      ? 'bg-white dark:bg-gray-600 text-rose-600 dark:text-rose-400 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  }`}
+                >
+                  🏥 Health
+                  {healthResult && <span className="absolute -top-1 -right-1 w-2 h-2 bg-rose-500 rounded-full" />}
+                </button>
               </div>
               <span className="text-xs text-gray-500 dark:text-gray-500">
-                {analysisType === 'summary' ? 'Key concepts & export' : analysisType === 'manipulation' ? 'v2.0 - 5 dimensions' : analysisType === 'discovery' ? 'Kinoshita Pattern' : 'v1.0 - 4 pillars'}
+                {analysisType === 'summary' ? 'Key concepts & export' : analysisType === 'manipulation' ? 'v2.0 - 5 dimensions' : analysisType === 'discovery' ? 'Kinoshita Pattern' : analysisType === 'health' ? 'Visual observations' : 'v1.0 - 4 pillars'}
               </span>
             </div>
 
@@ -425,6 +497,8 @@ export default function TranscriptDisplay({
                     ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white'
                     : analysisType === 'discovery'
                     ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white'
+                    : analysisType === 'health'
+                    ? 'bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white'
                     : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white'
                 }`}
               >
@@ -452,18 +526,22 @@ export default function TranscriptDisplay({
                       ? `Running ${analysisMode === 'deep' ? 'Deep' : 'Quick'} Analysis...`
                       : analysisType === 'discovery'
                       ? 'Running Discovery Analysis...'
+                      : analysisType === 'health'
+                      ? 'Extracting & Analyzing Frames...'
                       : 'Analyzing Rhetoric...'
                     }
                   </>
                 ) : (
                   <>
-                    <span>{analysisType === 'summary' ? '📋' : analysisType === 'manipulation' ? '🔬' : analysisType === 'discovery' ? '🔬' : '🎭'}</span>
+                    <span>{analysisType === 'summary' ? '📋' : analysisType === 'manipulation' ? '🔬' : analysisType === 'discovery' ? '🔬' : analysisType === 'health' ? '🏥' : '🎭'}</span>
                     {analysisType === 'summary'
                       ? 'Get Summary'
                       : analysisType === 'manipulation'
                       ? `${analysisMode === 'deep' ? 'Deep' : 'Quick'} Analysis`
                       : analysisType === 'discovery'
                       ? 'Run Discovery'
+                      : analysisType === 'health'
+                      ? 'Analyze Health'
                       : 'Analyze Rhetoric'
                     }
                   </>
@@ -487,6 +565,8 @@ export default function TranscriptDisplay({
                 ? `Detect manipulation tactics and score content trustworthiness across 5 dimensions. Higher scores = more trustworthy. ${analysisMode === 'deep' ? 'Deep mode verifies factual claims.' : ''}`
                 : analysisType === 'discovery'
                 ? 'Apply the Kinoshita Pattern to extract problems, techniques, and cross-domain applications. Discover transferable insights inspired by how EUV lithography was invented.'
+                : analysisType === 'health'
+                ? 'Extract video frames, detect human presence, and analyze for observable health features. EDUCATIONAL ONLY - NOT medical advice. Links to video timestamps.'
                 : 'Analyze the transcript for rhetorical techniques using AI. Identifies persuasion strategies, scores the four pillars (Logos, Pathos, Ethos, Kairos), and detects quotes/attributions.'
               }
             </p>
@@ -522,17 +602,23 @@ export default function TranscriptDisplay({
         <div className={`rounded-lg p-8 border ${
           analysisType === 'summary'
             ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'
+            : analysisType === 'health'
+            ? 'bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800'
             : 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800'
         }`}>
           <div className="flex flex-col items-center justify-center text-center">
             <div className={`w-16 h-16 border-4 rounded-full animate-spin mb-4 ${
               analysisType === 'summary'
                 ? 'border-emerald-200 border-t-emerald-600'
+                : analysisType === 'health'
+                ? 'border-rose-200 border-t-rose-600'
                 : 'border-indigo-200 border-t-indigo-600'
             }`} />
             <h4 className={`font-medium mb-2 ${
               analysisType === 'summary'
                 ? 'text-emerald-800 dark:text-emerald-200'
+                : analysisType === 'health'
+                ? 'text-rose-800 dark:text-rose-200'
                 : 'text-indigo-800 dark:text-indigo-200'
             }`}>
               {analysisType === 'summary'
@@ -541,6 +627,8 @@ export default function TranscriptDisplay({
                 ? `Running ${analysisMode === 'deep' ? 'Deep' : 'Quick'} Analysis...`
                 : analysisType === 'discovery'
                 ? 'Running Discovery Analysis...'
+                : analysisType === 'health'
+                ? 'Extracting & Analyzing Video Frames...'
                 : 'Analyzing Rhetorical Techniques...'
               }
             </h4>
@@ -570,6 +658,8 @@ export default function TranscriptDisplay({
             <p className={`text-sm max-w-md ${
               analysisType === 'summary'
                 ? 'text-emerald-600 dark:text-emerald-400'
+                : analysisType === 'health'
+                ? 'text-rose-600 dark:text-rose-400'
                 : 'text-indigo-600 dark:text-indigo-400'
             }`}>
               {analysisType === 'summary'
@@ -580,6 +670,8 @@ export default function TranscriptDisplay({
                   : 'Analyzing content across 5 dimensions: Epistemic Integrity, Argument Quality, Manipulation Risk, Rhetorical Craft, and Fairness. This takes about 15 seconds.'
                 : analysisType === 'discovery'
                 ? 'Applying the Kinoshita Pattern: extracting problems, techniques, cross-domain applications, and research trail. This takes about 30 seconds.'
+                : analysisType === 'health'
+                ? 'Downloading video, extracting frames every 30 seconds, detecting human presence, and analyzing with Claude vision. This may take 2-5 minutes depending on video length.'
                 : `Our AI is examining the transcript for persuasion techniques, scoring the four pillars of rhetoric, and ${verifyQuotes ? 'verifying quotes via web search' : 'identifying potential quotes'}. This may take 30-60 seconds.`
               }
             </p>
@@ -592,7 +684,8 @@ export default function TranscriptDisplay({
         (analysisType === 'summary' && summaryResult) ||
         (analysisType === 'manipulation' && manipulationResult) ||
         (analysisType === 'rhetorical' && rhetoricalResult) ||
-        (analysisType === 'discovery' && discoveryResult)
+        (analysisType === 'discovery' && discoveryResult) ||
+        (analysisType === 'health' && healthResult)
       ) && (
         <div className="relative">
           <button
@@ -645,6 +738,33 @@ export default function TranscriptDisplay({
               isCached={isDiscoveryCached}
               onReanalyze={() => analyzeDiscovery(videoId, { videoId })}
               isReanalyzing={discoveryLoading}
+            />
+          )}
+          {analysisType === 'health' && healthResult && (
+            <HealthObservations
+              result={healthResult}
+              videoTitle={videoTitle}
+              videoUrl={videoId ? `https://youtube.com/watch?v=${videoId}` : undefined}
+              isCached={isHealthCached}
+              onReanalyze={async () => {
+                setHealthLoading(true)
+                setHealthError(null)
+                try {
+                  const videoUrl = `https://youtube.com/watch?v=${videoId}`
+                  const result = await healthApi.analyzeHealth(videoUrl, {
+                    videoId,
+                    videoTitle,
+                    skipIfCached: false
+                  })
+                  setHealthResult(result)
+                  setIsHealthCached(false)
+                } catch (err: any) {
+                  setHealthError(err.response?.data?.detail || err.message || 'Health analysis failed')
+                } finally {
+                  setHealthLoading(false)
+                }
+              }}
+              isReanalyzing={healthLoading}
             />
           )}
         </div>

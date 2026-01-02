@@ -614,3 +614,81 @@ export interface ContentUploadResponse {
   content?: UnifiedContent
   error?: string
 }
+
+// ==========================================
+// Health Observations Types (v5.0)
+// ==========================================
+
+export type BodyRegion = 'face' | 'eyes' | 'skin' | 'hands' | 'neck' | 'posture' | 'other'
+
+export type ObservationSeverity = 'informational' | 'worth_mentioning' | 'consider_checkup'
+
+/**
+ * A single health-related observation from a video frame.
+ */
+export interface HealthObservation {
+  observation_id: string
+  timestamp: number  // Seconds into video
+  body_region: BodyRegion
+  observation: string  // Descriptive, not diagnostic
+  reasoning: string
+  confidence: number  // 0-1
+  limitations: string[]
+  severity: ObservationSeverity
+  related_conditions: string[]  // Educational context only
+  references: string[]
+}
+
+/**
+ * Analysis of a single video frame.
+ */
+export interface FrameAnalysis {
+  frame_id: string
+  timestamp: number
+  humans_detected: number
+  body_regions_visible: BodyRegion[]
+  observations: HealthObservation[]
+  image_quality_notes: string[]
+}
+
+/**
+ * Complete health observation result for a video.
+ */
+export interface HealthObservationResult {
+  video_id: string
+  video_title: string
+  video_url: string
+
+  // Analysis metadata
+  frames_extracted: number
+  frames_with_humans: number
+  frames_analyzed: number
+
+  // Results
+  observations: HealthObservation[]
+  summary: string
+  observations_by_region: Record<string, HealthObservation[]>
+  frame_analyses: FrameAnalysis[]
+
+  // Important notes
+  limitations: string[]
+  disclaimer: string
+
+  // Metadata
+  analysis_duration_seconds: number
+  analyzed_at: string
+  interval_seconds: number
+  model_used: string
+}
+
+/**
+ * Request for health observation analysis.
+ */
+export interface HealthObservationRequest {
+  video_url: string
+  video_id?: string
+  video_title?: string
+  interval_seconds?: number  // 5-120, default 30
+  max_frames?: number  // 1-50, default 20
+  skip_if_cached?: boolean
+}

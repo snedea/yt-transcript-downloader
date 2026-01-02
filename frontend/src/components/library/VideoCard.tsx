@@ -74,6 +74,12 @@ export function VideoCard({ item, onClick }: VideoCardProps) {
               Discovery
             </span>
           )}
+          {/* Show Health badge if health observation exists */}
+          {item.has_health && (
+            <span className="bg-rose-500 text-white text-xs px-1.5 py-0.5 rounded font-medium">
+              Health
+            </span>
+          )}
         </div>
 
         {/* Content type badge - bottom left */}
