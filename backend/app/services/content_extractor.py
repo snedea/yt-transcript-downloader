@@ -311,19 +311,40 @@ class PlainTextExtractor(ContentExtractor):
 
     async def extract(self, source: str) -> UnifiedContent:
         """Create UnifiedContent from plain text."""
-        # Check if it's a file path
-        path = Path(source)
-        if path.exists() and path.is_file():
-            text = path.read_text(encoding="utf-8")
-            title = path.stem
-            source_id = hashlib.md5(str(path).encode()).hexdigest()[:12]
-            source_type = (
-                ContentSourceType.MARKDOWN
-                if path.suffix.lower() in (".md", ".markdown")
-                else ContentSourceType.PLAIN_TEXT
-            )
+        # Check if it's a file path or raw text
+        # A file path should be relatively short and not contain newlines
+        is_likely_file_path = (
+            len(source) < 500 and  # File paths are typically short
+            '\n' not in source and  # File paths don't contain newlines
+            not source.startswith(' ')  # File paths don't start with whitespace
+        )
+
+        if is_likely_file_path:
+            try:
+                path = Path(source)
+                if path.exists() and path.is_file():
+                    text = path.read_text(encoding="utf-8")
+                    title = path.stem
+                    source_id = hashlib.md5(str(path).encode()).hexdigest()[:12]
+                    source_type = (
+                        ContentSourceType.MARKDOWN
+                        if path.suffix.lower() in (".md", ".markdown")
+                        else ContentSourceType.PLAIN_TEXT
+                    )
+                else:
+                    # Path doesn't exist, treat as raw text
+                    text = source
+                    title = self._generate_title(source)
+                    source_id = hashlib.md5(source.encode()).hexdigest()[:12]
+                    source_type = ContentSourceType.PLAIN_TEXT
+            except (OSError, ValueError):
+                # Path creation failed (e.g., invalid characters), treat as raw text
+                text = source
+                title = self._generate_title(source)
+                source_id = hashlib.md5(source.encode()).hexdigest()[:12]
+                source_type = ContentSourceType.PLAIN_TEXT
         else:
-            # It's raw text
+            # It's raw text (too long or contains newlines)
             text = source
             title = self._generate_title(source)
             source_id = hashlib.md5(source.encode()).hexdigest()[:12]
