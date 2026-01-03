@@ -140,7 +140,27 @@ class PDFExtractor(ContentExtractor):
 
         # Try to extract title from PDF metadata or filename
         pdf_title = metadata.get("pdf_info", {}).get("Title")
-        title = pdf_title if pdf_title else path.stem
+
+        if pdf_title:
+            title = pdf_title
+        elif full_text_parts:
+            # Extract title from first page text (first meaningful line)
+            first_page = full_text_parts[0] if full_text_parts else ""
+            lines = [line.strip() for line in first_page.split('\n') if line.strip()]
+
+            # Skip page numbers and find first substantial line
+            title_lines = []
+            for line in lines[:10]:  # Check first 10 lines
+                # Skip if line is just a number, too short, or all caps single word
+                if len(line) > 3 and not line.isdigit():
+                    title_lines.append(line)
+                    if len(' '.join(title_lines)) > 50:  # Enough for a title
+                        break
+
+            title = ' '.join(title_lines[:3])  # Use first 3 meaningful lines
+            title = title[:100] if title else path.stem  # Truncate to 100 chars or use filename
+        else:
+            title = path.stem
 
         # Try to extract author from PDF metadata
         pdf_author = metadata.get("pdf_info", {}).get("Author")

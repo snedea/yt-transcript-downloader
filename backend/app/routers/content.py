@@ -82,9 +82,9 @@ async def upload_content(
     title: Optional[str] = Query(None, description="Override title"),
     author: Optional[str] = Query(None, description="Override author"),
     save_to_library: bool = Query(True, description="Save to library (default: true)"),
-    background_tasks: BackgroundTasks,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    background_tasks: BackgroundTasks = BackgroundTasks()
 ) -> ContentUploadResponse:
     """
     Upload a file for content extraction.
@@ -283,7 +283,7 @@ async def generate_and_save_thumbnail_task(
 
         if thumbnail_path:
             # Update transcript record with thumbnail path
-            session = session_maker
+            session = session_maker()  # Call the function to get a session
             try:
                 transcript = session.exec(
                     select(Transcript).where(

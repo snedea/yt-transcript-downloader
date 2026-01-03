@@ -31,6 +31,9 @@ RUN adduser --disabled-password --gecos '' appuser
 # Create data directory for transcript cache (will be mounted as volume)
 RUN mkdir -p /app/data && chown appuser:appuser /app/data
 
+# Create uploads directory for PDFs and thumbnails (will be mounted as volume)
+RUN mkdir -p /app/uploads/pdfs /app/uploads/thumbnails && chown -R appuser:appuser /app/uploads
+
 # Create .claude directory for credentials (will be mounted as volume)
 RUN mkdir -p /home/appuser/.claude && chown -R appuser:appuser /home/appuser
 

@@ -74,7 +74,7 @@ class FileStorageService:
         try:
             pdf_path = self.PDF_DIR / f"{source_id}.pdf"
             pdf_path.write_bytes(file_content)
-            relative_path = str(pdf_path.relative_to(Path.cwd()))
+            relative_path = str(pdf_path)  # Already relative, just convert to string
             logger.info(f"Saved PDF to {relative_path}")
             return relative_path
         except Exception as e:
@@ -99,7 +99,7 @@ class FileStorageService:
         try:
             thumb_path = self.THUMBNAIL_DIR / f"{source_id}.{format}"
             thumb_path.write_bytes(image_bytes)
-            relative_path = str(thumb_path.relative_to(Path.cwd()))
+            relative_path = str(thumb_path)  # Already relative, just convert to string
             logger.info(f"Saved thumbnail to {relative_path}")
             return relative_path
         except Exception as e:

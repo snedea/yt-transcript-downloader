@@ -95,7 +95,7 @@ class ThumbnailGeneratorService:
         then resizes to YouTube thumbnail dimensions.
 
         Args:
-            pdf_path: Path to PDF file
+            pdf_path: Path to PDF file (relative or absolute)
 
         Returns:
             JPEG bytes or None if extraction fails
@@ -103,9 +103,16 @@ class ThumbnailGeneratorService:
         try:
             from pdf2image import convert_from_path
 
+            # Convert to absolute path if relative
+            pdf_path_obj = Path(pdf_path)
+            if not pdf_path_obj.is_absolute():
+                pdf_path_obj = Path.cwd() / pdf_path_obj
+
+            absolute_path = str(pdf_path_obj)
+
             # Convert first page only (faster)
             pages = convert_from_path(
-                pdf_path,
+                absolute_path,
                 first_page=1,
                 last_page=1,
                 dpi=150,  # Good quality/speed balance
