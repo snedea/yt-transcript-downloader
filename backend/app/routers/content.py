@@ -28,10 +28,19 @@ from app.db import get_session
 from app.dependencies import get_current_user
 from app.models.auth import User
 from app.services.content_detector import detect_source_type
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/content", tags=["content"])
+
+
+class ContentSubmitRequest(BaseModel):
+    """Request model for unified content submission"""
+    content_input: str
+    input_type: Optional[str] = None
+    title_override: Optional[str] = None
+    save_to_library: bool = True
 
 
 @router.post("/extract", response_model=UnifiedContent)
@@ -78,10 +87,7 @@ async def extract_content_endpoint(
 
 @router.post("/submit")
 async def submit_content_unified(
-    content_input: str,
-    input_type: Optional[str] = None,
-    title_override: Optional[str] = None,
-    save_to_library: bool = True,
+    request: ContentSubmitRequest,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ) -> dict:
@@ -111,19 +117,19 @@ async def submit_content_unified(
 
     try:
         # Detect content type
-        source_type, normalized_source, video_id = detect_source_type(content_input)
+        source_type, normalized_source, video_id = detect_source_type(request.content_input)
 
         logger.info(f"Detected source_type: {source_type}, normalized: {normalized_source}")
 
         # Extract content
         content = await extract_content(
-            source=normalized_source or content_input,
+            source=normalized_source or request.content_input,
             source_type=source_type
         )
 
         # Override title if provided
-        if title_override:
-            content.title = title_override
+        if request.title_override:
+            content.title = request.title_override
 
         if not content.extraction_success:
             raise HTTPException(
@@ -133,13 +139,13 @@ async def submit_content_unified(
 
         # Save to library if requested
         library_id = content.source_id
-        if save_to_library:
+        if request.save_to_library:
             cache_service = get_cache_service()
 
             # Prepare raw_content_text for plain text sources
             raw_content_text = None
             if source_type == ContentSourceType.PLAIN_TEXT:
-                raw_content_text = content_input  # Store original pasted text
+                raw_content_text = request.content_input  # Store original pasted text
 
             success = cache_service.save(
                 session=session,

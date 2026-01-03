@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { cacheApi, LibraryItem, TagCount, SearchFilters } from '@/services/api'
 import { SearchBar } from './SearchBar'
 import { VideoCard } from './VideoCard'
+import { UnifiedContentModal } from '@/components/content/UnifiedContentModal'
 import type { ContentType } from '@/types'
 
 interface LibraryViewProps {
@@ -27,6 +28,7 @@ export function LibraryView({ onVideoSelect }: LibraryViewProps) {
   const [results, setResults] = useState<LibraryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showContentModal, setShowContentModal] = useState(false)
 
   // Filters
   const [selectedTypes, setSelectedTypes] = useState<string[]>([])
@@ -124,6 +126,13 @@ export function LibraryView({ onVideoSelect }: LibraryViewProps) {
 
   const hasActiveFilters = searchQuery || selectedTypes.length > 0 || hasSummary !== null || hasAnalysis !== null || selectedTags.length > 0
 
+  const handleContentAdded = (contentId: string) => {
+    // Refresh results after adding content
+    fetchResults()
+    // Navigate to the newly added content
+    onVideoSelect(contentId)
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Search Header */}
@@ -135,6 +144,16 @@ export function LibraryView({ onVideoSelect }: LibraryViewProps) {
               onChange={setSearchQuery}
             />
           </div>
+          <button
+            onClick={() => setShowContentModal(true)}
+            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
+            title="Add content"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            <span className="hidden sm:inline">Add</span>
+          </button>
           <select
             value={orderBy}
             onChange={(e) => setOrderBy(e.target.value as typeof orderBy)}
@@ -289,6 +308,13 @@ export function LibraryView({ onVideoSelect }: LibraryViewProps) {
           </>
         )}
       </div>
+
+      {/* Unified Content Modal */}
+      <UnifiedContentModal
+        isOpen={showContentModal}
+        onClose={() => setShowContentModal(false)}
+        onContentAdded={handleContentAdded}
+      />
     </div>
   )
 }
