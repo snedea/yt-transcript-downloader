@@ -115,6 +115,11 @@ class TranscriptHistoryItem(SQLModel):
     character_count: int = 0
     page_count: Optional[int] = None
 
+    # Content metadata for library filtering
+    content_type: Optional[str] = None
+    keywords: Optional[List[str]] = None
+    tldr: Optional[str] = None
+
     # Flags for which analysis types are available
     has_analysis: bool = False
     has_summary: bool = False

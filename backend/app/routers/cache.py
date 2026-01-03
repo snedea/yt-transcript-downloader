@@ -85,6 +85,10 @@ async def get_cached_transcript(
         "word_count": result.get("word_count"),
         "character_count": result.get("character_count"),
         "page_count": result.get("page_count"),
+        # Content metadata
+        "content_type": result.get("content_type"),
+        "keywords": result.get("keywords"),
+        "tldr": result.get("tldr"),
         # Analysis results
         "analysis_result": result.get("analysis_result"),
         "analysis_date": result.get("analysis_date"),

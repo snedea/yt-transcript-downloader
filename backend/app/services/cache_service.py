@@ -443,25 +443,84 @@ class TranscriptCacheService:
         pass
 
     def advanced_search(self, session: Session, query: str, user_id: str, **kwargs) -> List[Dict[str, Any]]:
-        # Simplified implementation using standard search
-        return self.search(session, query, user_id)
+        """
+        Advanced search with faceted filtering by content_type, tags, and analysis flags.
+        """
+        content_types = kwargs.get('content_types')
+        has_summary = kwargs.get('has_summary')
+        has_analysis = kwargs.get('has_analysis')
+        tags = kwargs.get('tags')
+        limit = kwargs.get('limit', 50)
+        offset = kwargs.get('offset', 0)
+        order_by = kwargs.get('order_by', 'last_accessed')
+
+        # Start with base query
+        stmt = select(Transcript).where(Transcript.user_id == user_id)
+
+        # Apply text search if provided
+        if query:
+            stmt = stmt.where(
+                (Transcript.video_title.like(f'%{query}%')) |
+                (Transcript.transcript.like(f'%{query}%'))
+            )
+
+        # Filter by content type
+        if content_types:
+            stmt = stmt.where(Transcript.content_type.in_(content_types))
+
+        # Filter by summary status
+        if has_summary is not None:
+            if has_summary:
+                stmt = stmt.where(Transcript.summary_result.is_not(None))
+            else:
+                stmt = stmt.where(Transcript.summary_result.is_(None))
+
+        # Filter by analysis status
+        if has_analysis is not None:
+            if has_analysis:
+                stmt = stmt.where(Transcript.analysis_result.is_not(None))
+            else:
+                stmt = stmt.where(Transcript.analysis_result.is_(None))
+
+        # Filter by tags (keywords)
+        if tags:
+            # Tags are stored as JSON array, need to check if all requested tags are present
+            for tag in tags:
+                stmt = stmt.where(Transcript.keywords.like(f'%"{tag}"%'))
+
+        # Apply ordering
+        if order_by == 'created_at':
+            stmt = stmt.order_by(Transcript.created_at.desc())
+        elif order_by == 'title':
+            stmt = stmt.order_by(Transcript.video_title)
+        else:  # last_accessed
+            stmt = stmt.order_by(Transcript.last_accessed.desc())
+
+        # Apply limit and offset
+        stmt = stmt.limit(limit).offset(offset)
+
+        # Execute and convert to dicts
+        transcripts = session.exec(stmt).all()
+        return [self._to_dict(t) for t in transcripts]
         
     def get_all_tags(self, session: Session, limit: int = 100, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Get all unique tags/keywords from summaries with counts."""
+        """Get all unique tags/keywords from the keywords column with counts."""
         # Get all transcripts for the user (or all if no user specified)
         query = select(Transcript)
         if user_id:
             query = query.where(Transcript.user_id == user_id)
 
+        # Only get transcripts that have keywords
+        query = query.where(Transcript.keywords.is_not(None))
         transcripts = session.exec(query).all()
 
         # Collect all keywords with counts
         tag_counts: Dict[str, int] = {}
         for t in transcripts:
-            if t.summary_result:
-                summary = self._parse_json(t.summary_result)
-                if summary and 'keywords' in summary:
-                    for keyword in summary['keywords']:
+            if t.keywords:
+                keywords = self._parse_json(t.keywords)
+                if keywords and isinstance(keywords, list):
+                    for keyword in keywords:
                         tag_counts[keyword] = tag_counts.get(keyword, 0) + 1
 
         # Convert to list of dicts sorted by count
@@ -471,22 +530,20 @@ class TranscriptCacheService:
         return tags[:limit]
 
     def get_content_type_counts(self, session: Session, user_id: Optional[str] = None) -> Dict[str, int]:
-        """Get content type distribution."""
+        """Get content type distribution from content_type column."""
         query = select(Transcript)
         if user_id:
             query = query.where(Transcript.user_id == user_id)
 
+        # Only get transcripts that have content_type set
+        query = query.where(Transcript.content_type.is_not(None))
         transcripts = session.exec(query).all()
 
         # Count content types
         type_counts: Dict[str, int] = {}
         for t in transcripts:
-            if t.summary_result:
-                summary = self._parse_json(t.summary_result)
-                if summary and 'content_type' in summary:
-                    content_type = summary['content_type']
-                    if content_type:
-                        type_counts[content_type] = type_counts.get(content_type, 0) + 1
+            if t.content_type:
+                type_counts[t.content_type] = type_counts.get(t.content_type, 0) + 1
 
         return type_counts
         
