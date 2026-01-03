@@ -1,7 +1,7 @@
 # YT Analyzer - Caddy reverse proxy with automatic HTTPS
 # Uses Cloudflare DNS challenge for Let's Encrypt (works with Tailscale IPs)
 
-y.lllam.ai {
+yt.llam.ai {
     # TLS via Cloudflare DNS challenge
     tls {
         dns cloudflare {env.CF_API_TOKEN}
