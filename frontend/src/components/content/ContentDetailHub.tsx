@@ -1,8 +1,23 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { cacheApi } from '@/services/api'
+import { cacheApi, healthApi } from '@/services/api'
 import { downloadTextFile, copyToClipboard } from '@/utils/download'
+
+// Import hooks
+import { useContentSummary } from '@/hooks/useContentSummary'
+import { useRhetoricalAnalysis } from '@/hooks/useRhetoricalAnalysis'
+import { useManipulationAnalysis } from '@/hooks/useManipulationAnalysis'
+import { useDiscovery } from '@/hooks/useDiscovery'
+import { usePromptGenerator } from '@/hooks/usePromptGenerator'
+
+// Import components
+import { ContentSummary } from '@/components/analysis/ContentSummary'
+import { RhetoricalAnalysis } from '@/components/analysis/RhetoricalAnalysis'
+import { ManipulationAnalysis } from '@/components/analysis/ManipulationAnalysis'
+import { DiscoveryMode } from '@/components/analysis/DiscoveryMode'
+import { PromptGenerator } from '@/components/analysis/PromptGenerator'
+import { HealthObservations } from '@/components/analysis/HealthObservations'
 
 interface ContentDetailHubProps {
   contentId: string
@@ -71,6 +86,18 @@ export function ContentDetailHub({ contentId, onBack }: ContentDetailHubProps) {
   const [expandedAnalysis, setExpandedAnalysis] = useState<AnalysisType | null>(null)
   const [copied, setCopied] = useState(false)
 
+  // Initialize all analysis hooks
+  const summary = useContentSummary()
+  const rhetorical = useRhetoricalAnalysis()
+  const manipulation = useManipulationAnalysis()
+  const discovery = useDiscovery()
+  const prompts = usePromptGenerator()
+
+  // Health observations state (no dedicated hook)
+  const [healthLoading, setHealthLoading] = useState(false)
+  const [healthError, setHealthError] = useState<string | null>(null)
+  const [healthResult, setHealthResult] = useState<any>(null)
+
   useEffect(() => {
     loadContent()
   }, [contentId])
@@ -82,11 +109,114 @@ export function ContentDetailHub({ contentId, onBack }: ContentDetailHubProps) {
     try {
       const data = await cacheApi.get(contentId)
       setContent(data)
+
+      // Load cached analyses if they exist
+      if (data.summary_result) {
+        summary.setFromCache(data.summary_result)
+      }
+      if (data.analysis_result) {
+        rhetorical.setFromCache(data.analysis_result)
+      }
+      if (data.manipulation_result) {
+        manipulation.setFromCache(data.manipulation_result)
+      }
+      if (data.discovery_result) {
+        discovery.setFromCache(data.discovery_result)
+      }
+      if (data.prompts_result) {
+        prompts.setFromCache(data.prompts_result)
+      }
+      if (data.health_observation_result) {
+        setHealthResult(data.health_observation_result)
+      }
     } catch (err: any) {
       console.error('Failed to load content:', err)
       setError(err.message || 'Failed to load content')
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Analysis handlers
+  const handleRunSummary = async () => {
+    if (!content) return
+    await summary.analyzeTranscript(
+      content.transcript,
+      undefined,
+      {
+        videoId: content.video_id,
+        videoTitle: content.video_title,
+        videoAuthor: content.author,
+        videoUrl: content.source_type === 'youtube' ? `https://youtube.com/watch?v=${content.video_id}` : undefined
+      }
+    )
+    // Reload content to update cache status
+    await loadContent()
+  }
+
+  const handleRunRhetorical = async () => {
+    if (!content) return
+    await rhetorical.analyzeTranscript(
+      content.transcript,
+      undefined,
+      {
+        videoId: content.video_id,
+        videoTitle: content.video_title,
+        videoAuthor: content.author
+      }
+    )
+    await loadContent()
+  }
+
+  const handleRunManipulation = async () => {
+    if (!content) return
+    await manipulation.analyzeTranscript(
+      content.transcript,
+      undefined,
+      {
+        mode: 'quick',
+        videoId: content.video_id,
+        videoTitle: content.video_title,
+        videoAuthor: content.author
+      }
+    )
+    await loadContent()
+  }
+
+  const handleRunDiscovery = async () => {
+    if (!content) return
+    await discovery.analyzeFromVideoId(content.video_id)
+    await loadContent()
+  }
+
+  const handleRunPrompts = async () => {
+    if (!content) return
+    await prompts.generateFromVideoId(content.video_id, {
+      videoTitle: content.video_title,
+      videoAuthor: content.author
+    })
+    await loadContent()
+  }
+
+  const handleRunHealth = async () => {
+    if (!content || content.source_type !== 'youtube') return
+    setHealthLoading(true)
+    setHealthError(null)
+
+    try {
+      const result = await healthApi.analyzeHealth(
+        content.video_id,
+        {
+          videoTitle: content.video_title,
+          videoUrl: `https://youtube.com/watch?v=${content.video_id}`
+        }
+      )
+      setHealthResult(result)
+      await loadContent()
+    } catch (err: any) {
+      setHealthError(err.message || 'Failed to analyze health')
+    } finally {
+      setHealthLoading(false)
     }
   }
 
@@ -162,6 +292,125 @@ export function ContentDetailHub({ contentId, onBack }: ContentDetailHubProps) {
       case 'prompts': return content.prompts_date
       case 'health': return content.health_observation_date
       default: return undefined
+    }
+  }
+
+  const isAnalysisLoading = (analysisId: AnalysisType): boolean => {
+    switch (analysisId) {
+      case 'summary': return summary.loading
+      case 'rhetorical': return rhetorical.loading
+      case 'manipulation': return manipulation.loading
+      case 'discovery': return discovery.loading
+      case 'prompts': return prompts.loading
+      case 'health': return healthLoading
+      default: return false
+    }
+  }
+
+  const getAnalysisError = (analysisId: AnalysisType): string | null => {
+    switch (analysisId) {
+      case 'summary': return summary.error
+      case 'rhetorical': return rhetorical.error
+      case 'manipulation': return manipulation.error
+      case 'discovery': return discovery.error
+      case 'prompts': return prompts.error
+      case 'health': return healthError
+      default: return null
+    }
+  }
+
+  const handleRunAnalysis = (analysisId: AnalysisType) => {
+    switch (analysisId) {
+      case 'summary': return handleRunSummary()
+      case 'rhetorical': return handleRunRhetorical()
+      case 'manipulation': return handleRunManipulation()
+      case 'discovery': return handleRunDiscovery()
+      case 'prompts': return handleRunPrompts()
+      case 'health': return handleRunHealth()
+    }
+  }
+
+  const renderAnalysisResult = (analysisId: AnalysisType) => {
+    if (!content) return null
+
+    const videoUrl = content.source_type === 'youtube' ? `https://youtube.com/watch?v=${content.video_id}` : undefined
+
+    switch (analysisId) {
+      case 'summary':
+        return summary.result ? (
+          <ContentSummary
+            result={summary.result}
+            videoTitle={content.video_title}
+            videoAuthor={content.author}
+            videoUrl={videoUrl}
+            videoId={content.video_id}
+            isCached={summary.isCached}
+            onReanalyze={handleRunSummary}
+            isReanalyzing={summary.loading}
+          />
+        ) : null
+
+      case 'rhetorical':
+        return rhetorical.result ? (
+          <RhetoricalAnalysis
+            result={rhetorical.result}
+            videoTitle={content.video_title}
+            videoAuthor={content.author}
+            isCached={rhetorical.isCached}
+            analysisDate={content.analysis_date}
+          />
+        ) : null
+
+      case 'manipulation':
+        return manipulation.result ? (
+          <ManipulationAnalysis
+            result={manipulation.result}
+            videoTitle={content.video_title}
+            videoAuthor={content.author}
+            isCached={manipulation.isCached}
+            analysisDate={content.manipulation_date}
+          />
+        ) : null
+
+      case 'discovery':
+        return discovery.result ? (
+          <DiscoveryMode
+            result={discovery.result}
+            videoTitle={content.video_title}
+            videoAuthor={content.author}
+            videoUrl={videoUrl}
+            isCached={discovery.isCached}
+            onReanalyze={handleRunDiscovery}
+            isReanalyzing={discovery.loading}
+          />
+        ) : null
+
+      case 'prompts':
+        return prompts.result ? (
+          <PromptGenerator
+            result={prompts.result}
+            videoTitle={content.video_title}
+            videoAuthor={content.author}
+            videoUrl={videoUrl}
+            isCached={prompts.isCached}
+            onRegenerate={handleRunPrompts}
+            isRegenerating={prompts.loading}
+          />
+        ) : null
+
+      case 'health':
+        return healthResult ? (
+          <HealthObservations
+            result={healthResult}
+            videoTitle={content.video_title}
+            videoUrl={videoUrl}
+            onReanalyze={handleRunHealth}
+            isReanalyzing={healthLoading}
+          />
+        ) : null
+
+      default:
+        return null
     }
   }
 
@@ -288,6 +537,8 @@ export function ContentDetailHub({ contentId, onBack }: ContentDetailHubProps) {
               const isComplete = isAnalysisComplete(option.id)
               const isAvailable = isAnalysisAvailable(option)
               const analysisDate = getAnalysisDate(option.id)
+              const isLoading = isAnalysisLoading(option.id)
+              const analysisError = getAnalysisError(option.id)
 
               if (!isAvailable) return null
 
@@ -320,6 +571,11 @@ export function ContentDetailHub({ contentId, onBack }: ContentDetailHubProps) {
                             Last run: {formatDate(analysisDate)}
                           </p>
                         )}
+                        {analysisError && (
+                          <p className="text-xs text-red-500 dark:text-red-400 mt-1">
+                            Error: {analysisError}
+                          </p>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 ml-4">
@@ -328,20 +584,25 @@ export function ContentDetailHub({ contentId, onBack }: ContentDetailHubProps) {
                           <button
                             onClick={() => setExpandedAnalysis(expandedAnalysis === option.id ? null : option.id)}
                             className="px-3 py-1.5 text-sm bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-900/50 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded-md transition-colors"
+                            disabled={isLoading}
                           >
                             {expandedAnalysis === option.id ? 'Hide' : 'View'}
                           </button>
                           <button
-                            className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-md transition-colors"
+                            onClick={() => handleRunAnalysis(option.id)}
+                            disabled={isLoading}
+                            className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            Re-run
+                            {isLoading ? 'Running...' : 'Re-run'}
                           </button>
                         </>
                       ) : (
                         <button
-                          className="px-4 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-md transition-colors"
+                          onClick={() => handleRunAnalysis(option.id)}
+                          disabled={isLoading}
+                          className="px-4 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          Run Analysis
+                          {isLoading ? 'Running...' : 'Run Analysis'}
                         </button>
                       )}
                     </div>
@@ -350,11 +611,7 @@ export function ContentDetailHub({ contentId, onBack }: ContentDetailHubProps) {
                   {/* Expanded Analysis Result */}
                   {expandedAnalysis === option.id && isComplete && (
                     <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                      <div className="bg-white dark:bg-gray-900 rounded-lg p-4">
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          Analysis results will be displayed here (integrate existing components)
-                        </p>
-                      </div>
+                      {renderAnalysisResult(option.id)}
                     </div>
                   )}
                 </div>

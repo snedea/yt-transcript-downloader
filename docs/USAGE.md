@@ -1,6 +1,6 @@
 # Usage Guide
 
-This guide explains how to use the YouTube Transcript Downloader to fetch and process video transcripts.
+This guide explains how to use Faceteer to fetch and analyze content from multiple sources.
 
 ## Getting Started
 

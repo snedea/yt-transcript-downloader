@@ -174,4 +174,4 @@ export function ContentCard({ item, onClick }: ContentCardProps) {
   )
 }
 
-export default VideoCard
+export default ContentCard

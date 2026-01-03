@@ -1,4 +1,4 @@
-# YouTube Transcript Downloader - Build Summary
+# Faceteer - Build Summary
 
 **Build Date:** November 20, 2025  
 **Status:** ✅ Complete and Tested  

@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# YouTube Transcript Downloader - Stop Script
+# Faceteer - Stop Script
 
-echo "🛑 Stopping YouTube Transcript Downloader..."
+echo "🛑 Stopping Faceteer..."
 echo ""
 
 # Get the directory where this script is located

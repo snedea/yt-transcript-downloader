@@ -1,6 +1,6 @@
 # Architecture Documentation
 
-This document describes the system architecture of the YouTube Transcript Downloader.
+This document describes the system architecture of Faceteer.
 
 ## System Overview
 

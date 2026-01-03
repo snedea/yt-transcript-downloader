@@ -1,6 +1,6 @@
 # API Documentation
 
-This document describes the REST API endpoints provided by the YouTube Transcript Downloader backend.
+This document describes the REST API endpoints provided by the Faceteer backend.
 
 ## Base URL
 
