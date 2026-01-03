@@ -80,6 +80,12 @@ export function VideoCard({ item, onClick }: VideoCardProps) {
               Health
             </span>
           )}
+          {/* Show Prompts badge if prompts exist */}
+          {item.has_prompts && (
+            <span className="bg-violet-500 text-white text-xs px-1.5 py-0.5 rounded font-medium">
+              Prompts
+            </span>
+          )}
         </div>
 
         {/* Content type badge - bottom left */}

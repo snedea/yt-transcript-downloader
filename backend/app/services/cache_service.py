@@ -108,6 +108,16 @@ class TranscriptCacheService:
             except sqlite3.OperationalError:
                 pass  # Column already exists
 
+            # Add prompts_result columns (prompt generator results)
+            try:
+                conn.execute("ALTER TABLE transcripts ADD COLUMN prompts_result TEXT")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+            try:
+                conn.execute("ALTER TABLE transcripts ADD COLUMN prompts_date TEXT")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+
             # Create index for faster lookups
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_last_accessed
@@ -245,6 +255,13 @@ class TranscriptCacheService:
                     except json.JSONDecodeError:
                         result['health_observation_result'] = None
 
+                # Parse prompts_result JSON if present
+                if result.get('prompts_result'):
+                    try:
+                        result['prompts_result'] = json.loads(result['prompts_result'])
+                    except json.JSONDecodeError:
+                        result['prompts_result'] = None
+
                 # Convert is_cleaned to bool
                 result['is_cleaned'] = bool(result.get('is_cleaned', 0))
 
@@ -345,7 +362,8 @@ class TranscriptCacheService:
                        CASE WHEN manipulation_result IS NOT NULL THEN 1 ELSE 0 END as has_manipulation,
                        CASE WHEN analysis_result IS NOT NULL THEN 1 ELSE 0 END as has_rhetorical,
                        CASE WHEN discovery_result IS NOT NULL THEN 1 ELSE 0 END as has_discovery,
-                       CASE WHEN health_observation_result IS NOT NULL THEN 1 ELSE 0 END as has_health
+                       CASE WHEN health_observation_result IS NOT NULL THEN 1 ELSE 0 END as has_health,
+                       CASE WHEN prompts_result IS NOT NULL THEN 1 ELSE 0 END as has_prompts
                 FROM transcripts
                 ORDER BY last_accessed DESC
                 LIMIT ? OFFSET ?
@@ -363,6 +381,7 @@ class TranscriptCacheService:
                 item['has_rhetorical'] = bool(item.get('has_rhetorical', 0))
                 item['has_discovery'] = bool(item.get('has_discovery', 0))
                 item['has_health'] = bool(item.get('has_health', 0))
+                item['has_prompts'] = bool(item.get('has_prompts', 0))
                 items.append(item)
 
             return items
@@ -777,6 +796,76 @@ class TranscriptCacheService:
             )
             return cursor.fetchone() is not None
 
+    def save_prompts(self, video_id: str, prompts_result: Dict[str, Any]) -> bool:
+        """
+        Save prompt generator results for a video.
+
+        Args:
+            video_id: YouTube video ID
+            prompts_result: The complete prompts result dictionary
+
+        Returns:
+            True if saved successfully, False otherwise
+        """
+        now = datetime.utcnow().isoformat()
+        prompts_json = json.dumps(prompts_result)
+
+        try:
+            with self._get_connection() as conn:
+                conn.execute(
+                    """
+                    UPDATE transcripts
+                    SET prompts_result = ?, prompts_date = ?
+                    WHERE video_id = ?
+                    """,
+                    (prompts_json, now, video_id)
+                )
+                conn.commit()
+
+                if conn.total_changes > 0:
+                    logger.info(f"Saved prompts for video {video_id}")
+                    return True
+                else:
+                    logger.warning(f"No transcript found to save prompts for video {video_id}")
+                    return False
+
+        except Exception as e:
+            logger.error(f"Failed to save prompts: {e}")
+            return False
+
+    def get_prompts(self, video_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get cached prompt generator results for a video.
+
+        Returns:
+            Prompts result dict or None if not found
+        """
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT prompts_result, prompts_date FROM transcripts WHERE video_id = ?",
+                (video_id,)
+            )
+            row = cursor.fetchone()
+
+            if row and row['prompts_result']:
+                try:
+                    result = json.loads(row['prompts_result'])
+                    result['prompts_date'] = row['prompts_date']
+                    return result
+                except json.JSONDecodeError:
+                    return None
+
+            return None
+
+    def has_prompts(self, video_id: str) -> bool:
+        """Check if a video has cached prompts."""
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT 1 FROM transcripts WHERE video_id = ? AND prompts_result IS NOT NULL",
+                (video_id,)
+            )
+            return cursor.fetchone() is not None
+
     def _ensure_fts_populated(self):
         """Ensure FTS index is populated with existing transcript data."""
         with self._get_connection() as conn:
@@ -926,6 +1015,7 @@ class TranscriptCacheService:
                     CASE WHEN analysis_result IS NOT NULL THEN 1 ELSE 0 END as has_rhetorical,
                     CASE WHEN discovery_result IS NOT NULL THEN 1 ELSE 0 END as has_discovery,
                     CASE WHEN health_observation_result IS NOT NULL THEN 1 ELSE 0 END as has_health,
+                    CASE WHEN prompts_result IS NOT NULL THEN 1 ELSE 0 END as has_prompts,
                     CASE
                         WHEN manipulation_result IS NOT NULL AND analysis_result IS NOT NULL THEN 'both'
                         WHEN manipulation_result IS NOT NULL THEN 'manipulation'
@@ -954,6 +1044,7 @@ class TranscriptCacheService:
                 item['has_rhetorical'] = bool(item.get('has_rhetorical', 0))
                 item['has_discovery'] = bool(item.get('has_discovery', 0))
                 item['has_health'] = bool(item.get('has_health', 0))
+                item['has_prompts'] = bool(item.get('has_prompts', 0))
                 # Parse keywords JSON
                 if item.get('keywords'):
                     try:

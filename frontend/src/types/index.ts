@@ -692,3 +692,85 @@ export interface HealthObservationRequest {
   max_frames?: number  // 1-50, default 20
   skip_if_cached?: boolean
 }
+
+// ==========================================
+// Prompt Generator Types (v6.0)
+// ==========================================
+
+export type PromptCategory =
+  | 'app_builder'
+  | 'research_deep_dive'
+  | 'devils_advocate'
+  | 'mermaid_diagrams'
+  | 'sora'
+  | 'nano_banana_pro'
+  | 'validation_frameworks'
+
+/**
+ * Metadata for each prompt category (UI display).
+ */
+export interface PromptCategoryInfo {
+  name: string
+  icon: string
+  color: string
+  target_tool: string
+  description: string
+}
+
+/**
+ * A single generated prompt with Nate B Jones techniques.
+ */
+export interface GeneratedPrompt {
+  prompt_id: string
+  category: PromptCategory
+  category_name: string
+  category_icon: string
+  title: string
+  description: string
+  prompt_content: string  // 500-2000 words, production-ready
+  intent_specification: string
+  disambiguation_questions: string[]
+  failure_conditions: string[]
+  success_criteria: string[]
+  video_context_used: string[]
+  analysis_context_used: string[]
+  target_tool: string
+  estimated_output_type: string
+  word_count: number
+}
+
+/**
+ * Complete result from prompt generation.
+ */
+export interface PromptGeneratorResult {
+  content_title: string
+  source_id?: string
+  source_url?: string
+  prompts: GeneratedPrompt[]
+  prompts_by_category: Record<string, GeneratedPrompt>
+  total_prompts: number
+  total_word_count: number
+  input_word_count: number
+  analysis_types_used: string[]
+  analysis_version: string
+  tokens_used: number
+  analysis_duration_seconds: number
+  generated_at: string
+  model_used: string
+}
+
+/**
+ * Request for prompt generation.
+ */
+export interface PromptGeneratorRequest {
+  transcript?: string
+  video_id?: string
+  source_text?: string
+  source_url?: string
+  include_discovery?: boolean
+  include_summary?: boolean
+  include_manipulation?: boolean
+  categories?: PromptCategory[]
+  video_title?: string
+  video_author?: string
+}

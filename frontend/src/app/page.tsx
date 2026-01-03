@@ -8,8 +8,9 @@ import { Sidebar } from '@/components/layout/Sidebar'
 import { LibraryView } from '@/components/library/LibraryView'
 import { DiscoveryView } from '@/components/discovery/DiscoveryView'
 import { HealthView } from '@/components/health/HealthView'
+import { PromptGeneratorView } from '@/components/prompts/PromptGeneratorView'
 
-type ViewType = 'library' | 'new' | 'detail' | 'discover' | 'health'
+type ViewType = 'library' | 'new' | 'detail' | 'discover' | 'health' | 'prompts'
 type NewVideoTab = 'single' | 'bulk'
 
 export default function Home() {
@@ -53,6 +54,8 @@ export default function Home() {
           <DiscoveryView />
         ) : currentView === 'health' ? (
           <HealthView />
+        ) : currentView === 'prompts' ? (
+          <PromptGeneratorView />
         ) : (
           <div className="h-full overflow-auto">
             <div className="container mx-auto px-4 py-8">

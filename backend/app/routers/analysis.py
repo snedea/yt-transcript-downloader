@@ -25,11 +25,17 @@ from app.models.discovery import (
     DiscoveryRequest,
     DiscoveryResult
 )
+from app.models.prompt_generator import (
+    PromptGeneratorRequest,
+    PromptGeneratorResult,
+    PromptCategory
+)
 from app.models.content import UnifiedContent
 from app.services.rhetorical_analysis import get_analysis_service
 from app.services.manipulation_pipeline import get_manipulation_pipeline
 from app.services.summary_service import get_summary_service
 from app.services.discovery_service import DiscoveryService
+from app.services.prompt_generator_service import get_prompt_generator_service
 from app.services.content_extractor import extract_content
 from app.services.cache_service import CacheService
 from app.data.rhetorical_toolkit import (
@@ -548,4 +554,129 @@ async def analyze_discovery(request: DiscoveryRequest) -> DiscoveryResult:
         raise HTTPException(
             status_code=500,
             detail=f"Discovery analysis failed: {str(e)}"
+        )
+
+
+# =========================================================================
+# PROMPT GENERATOR ENDPOINTS (v6.0 - Nate B Jones Techniques)
+# =========================================================================
+
+@router.post("/prompts/generate", response_model=PromptGeneratorResult)
+async def generate_prompts(request: PromptGeneratorRequest) -> PromptGeneratorResult:
+    """
+    Generate production-ready prompts for AI tools based on video content.
+
+    Generates prompts for 7 categories (or selected subset):
+    - App Builder (Context Foundry): Build working applications
+    - Research Deep-Dive: Structured research exploration
+    - Devil's Advocate: Challenge assumptions, opposing views
+    - Mermaid Diagrams: Visual diagrams from content
+    - Sora: Video generation prompts
+    - Nano Banana Pro: Infographics and visuals
+    - Validation Frameworks: Testing and validation
+
+    Each prompt is 500-2000 words and includes:
+    - Explicit intent specification (Nate B Jones technique)
+    - Disambiguation questions
+    - Failure conditions and graceful degradation
+    - Semantic structure with <requirements>, <context>, <task> blocks
+    - Measurable success criteria
+
+    Args:
+        request: PromptGeneratorRequest containing:
+            - transcript: Raw text (optional if video_id provided)
+            - video_id: For cached YouTube content
+            - source_text: Any text to generate prompts from
+            - include_discovery: Use discovery analysis if available
+            - include_summary: Use summary if available
+            - categories: Optional list of categories to generate
+
+    Returns:
+        PromptGeneratorResult with 7 production-ready prompts
+    """
+    service = get_prompt_generator_service()
+
+    if not service.is_available():
+        raise HTTPException(
+            status_code=503,
+            detail="No LLM provider available for prompt generation"
+        )
+
+    # Get transcript from video_id or direct input
+    transcript = request.transcript or request.source_text
+    video_title = request.video_title
+    video_author = request.video_author
+    video_id = request.video_id
+    video_url = request.source_url
+
+    # Load from cache if video_id provided
+    if request.video_id and not transcript:
+        cache_service = CacheService()
+        cached = cache_service.get_transcript(request.video_id)
+
+        if not cached:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Video {request.video_id} not found in cache"
+            )
+
+        transcript = cached.get("cleaned_transcript") or cached.get("transcript", "")
+        video_title = video_title or cached.get("title", "")
+        video_url = f"https://www.youtube.com/watch?v={request.video_id}"
+
+    if not transcript or len(transcript.strip()) < 100:
+        raise HTTPException(
+            status_code=400,
+            detail="Transcript or source text required (minimum 100 characters)"
+        )
+
+    # Optionally load existing analyses for enrichment
+    discovery_summary = None
+    content_summary = None
+
+    if request.video_id:
+        cache_service = CacheService()
+
+        if request.include_discovery:
+            discovery_data = cache_service.get_discovery(request.video_id)
+            if discovery_data:
+                # Extract key insights as summary
+                insights = discovery_data.get("key_insights", [])
+                if insights:
+                    discovery_summary = "Key Insights:\n" + "\n".join(f"- {i}" for i in insights[:10])
+
+        if request.include_summary:
+            summary_data = cache_service.get_summary(request.video_id)
+            if summary_data:
+                content_summary = summary_data.get("tldr", "")
+
+    # Generate prompts
+    try:
+        result = await service.generate_prompts(
+            transcript=transcript,
+            video_title=video_title,
+            video_author=video_author,
+            video_id=video_id,
+            video_url=video_url,
+            discovery_summary=discovery_summary,
+            content_summary=content_summary,
+            categories=request.categories
+        )
+
+        if not result["success"]:
+            raise HTTPException(
+                status_code=500,
+                detail=result.get("error", "Prompt generation failed")
+            )
+
+        return result["result"]
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        logger.error(f"Unexpected error during prompt generation: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Prompt generation failed: {str(e)}"
         )

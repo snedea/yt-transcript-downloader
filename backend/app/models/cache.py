@@ -31,6 +31,12 @@ class TranscriptHistoryItem(BaseModel):
     author: Optional[str]
     is_cleaned: bool
     has_analysis: bool = False
+    has_summary: bool = False
+    has_manipulation: bool = False
+    has_rhetorical: bool = False
+    has_discovery: bool = False
+    has_health: bool = False
+    has_prompts: bool = False
     created_at: datetime
     last_accessed: datetime
     access_count: int

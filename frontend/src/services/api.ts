@@ -24,7 +24,9 @@ import type {
   ContentExtractionRequest,
   ContentUploadResponse,
   HealthObservationResult,
-  HealthObservationRequest
+  HealthObservationRequest,
+  PromptGeneratorResult,
+  PromptCategory
 } from '@/types'
 
 // Use relative URLs (empty string) when NEXT_PUBLIC_API_URL is not set or empty
@@ -107,6 +109,10 @@ export interface CachedTranscript extends TranscriptResponse {
   health_observation_result?: HealthObservationResult
   health_observation_date?: string
   has_health: boolean
+  // Prompt generator results
+  prompts_result?: PromptGeneratorResult
+  prompts_date?: string
+  has_prompts: boolean
 }
 
 // Library/Search API types
@@ -121,6 +127,7 @@ export interface LibraryItem {
   has_rhetorical: boolean    // rhetorical analysis v1.0
   has_discovery: boolean     // discovery analysis (Kinoshita pattern)
   has_health: boolean        // health observations (visual analysis)
+  has_prompts: boolean       // prompt generator results
   analysis_type: 'manipulation' | 'rhetorical' | 'both' | null
   content_type: string | null
   keywords: string[]
@@ -682,5 +689,67 @@ export const healthApi = {
   }> => {
     const response = await api.get('/api/health/disclaimer')
     return response.data
+  }
+}
+
+/**
+ * Prompt Generator API for generating production-ready prompts
+ * Generates prompts for 7 AI tool categories using Nate B Jones' techniques
+ */
+export const promptGeneratorApi = {
+  /**
+   * Generate prompts for all or selected categories
+   * Uses video content, optionally enriched with discovery/summary analyses
+   */
+  generatePrompts: async (options: {
+    transcript?: string
+    videoId?: string
+    sourceText?: string
+    sourceUrl?: string
+    includeDiscovery?: boolean
+    includeSummary?: boolean
+    includeManipulation?: boolean
+    categories?: PromptCategory[]
+    videoTitle?: string
+    videoAuthor?: string
+  }): Promise<PromptGeneratorResult> => {
+    const response = await api.post<PromptGeneratorResult>('/api/analysis/prompts/generate', {
+      transcript: options.transcript,
+      video_id: options.videoId,
+      source_text: options.sourceText,
+      source_url: options.sourceUrl,
+      include_discovery: options.includeDiscovery ?? true,
+      include_summary: options.includeSummary ?? true,
+      include_manipulation: options.includeManipulation ?? false,
+      categories: options.categories,
+      video_title: options.videoTitle,
+      video_author: options.videoAuthor
+    })
+    return response.data
+  },
+
+  /**
+   * Get cached prompts for a video
+   */
+  getPrompts: async (videoId: string): Promise<PromptGeneratorResult | null> => {
+    try {
+      const response = await api.get<PromptGeneratorResult>(`/api/cache/prompts/${videoId}`)
+      return response.data
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return null
+      }
+      throw error
+    }
+  },
+
+  /**
+   * Save prompts to cache
+   */
+  savePrompts: async (videoId: string, promptsResult: PromptGeneratorResult): Promise<void> => {
+    await api.post('/api/cache/prompts', {
+      video_id: videoId,
+      prompts_result: promptsResult
+    })
   }
 }

@@ -37,6 +37,11 @@ class SaveDiscoveryRequest(BaseModel):
     discovery_result: Dict[str, Any]
 
 
+class SavePromptsRequest(BaseModel):
+    video_id: str
+    prompts_result: Dict[str, Any]
+
+
 @router.get("/transcript/{video_id}")
 async def get_cached_transcript(video_id: str):
     """
@@ -79,7 +84,15 @@ async def get_cached_transcript(video_id: str):
         # Discovery analysis (Kinoshita Pattern)
         "discovery_result": result.get("discovery_result"),
         "discovery_date": result.get("discovery_date"),
-        "has_discovery": result.get("discovery_result") is not None
+        "has_discovery": result.get("discovery_result") is not None,
+        # Health observation analysis
+        "health_observation_result": result.get("health_observation_result"),
+        "health_observation_date": result.get("health_observation_date"),
+        "has_health": result.get("health_observation_result") is not None,
+        # Prompt generator results
+        "prompts_result": result.get("prompts_result"),
+        "prompts_date": result.get("prompts_date"),
+        "has_prompts": result.get("prompts_result") is not None
     }
 
 
@@ -417,3 +430,41 @@ async def rebuild_fts_index():
     cache = get_cache_service()
     cache.rebuild_fts_index()
     return {"status": "success", "message": "FTS index rebuilt"}
+
+
+@router.post("/prompts")
+async def save_prompts(request: SavePromptsRequest):
+    """
+    Save prompt generator results for a video.
+
+    The video must already exist in the cache (transcript must be saved first).
+    """
+    cache = get_cache_service()
+    success = cache.save_prompts(request.video_id, request.prompts_result)
+
+    if not success:
+        raise HTTPException(
+            status_code=404,
+            detail="Transcript not found in cache. Save the transcript first."
+        )
+
+    return {"saved": True, "video_id": request.video_id}
+
+
+@router.get("/prompts/{video_id}")
+async def get_cached_prompts(video_id: str):
+    """
+    Get cached prompt generator results for a video.
+    """
+    cache = get_cache_service()
+    result = cache.get_prompts(video_id)
+
+    if not result:
+        raise HTTPException(status_code=404, detail="Prompts not found in cache")
+
+    return {
+        "video_id": video_id,
+        "prompts": result,
+        "prompts_date": result.get("prompts_date"),
+        "cached": True
+    }

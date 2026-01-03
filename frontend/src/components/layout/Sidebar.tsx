@@ -2,11 +2,11 @@
 
 import React from 'react'
 
-type ViewType = 'library' | 'new' | 'detail' | 'discover' | 'health'
+type ViewType = 'library' | 'new' | 'detail' | 'discover' | 'health' | 'prompts'
 
 interface SidebarProps {
   currentView: ViewType
-  onViewChange: (view: 'library' | 'new' | 'discover' | 'health') => void
+  onViewChange: (view: 'library' | 'new' | 'discover' | 'health' | 'prompts') => void
   collapsed?: boolean
   onToggleCollapse?: () => void
 }
@@ -22,6 +22,7 @@ export function Sidebar({
     { id: 'library' as const, label: 'Library', icon: LibraryIcon },
     { id: 'new' as const, label: 'New Video', icon: PlusIcon },
     { id: 'discover' as const, label: 'Discovery', icon: DiscoverIcon },
+    { id: 'prompts' as const, label: 'Prompts', icon: PromptsIcon },
     { id: 'health' as const, label: 'Health', icon: HealthIcon },
   ]
 
@@ -173,6 +174,14 @@ function HealthIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+    </svg>
+  )
+}
+
+function PromptsIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
     </svg>
   )
 }

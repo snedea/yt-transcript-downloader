@@ -6,16 +6,18 @@ import { useRhetoricalAnalysis } from '@/hooks/useRhetoricalAnalysis'
 import { useManipulationAnalysis } from '@/hooks/useManipulationAnalysis'
 import { useContentSummary } from '@/hooks/useContentSummary'
 import { useDiscovery } from '@/hooks/useDiscovery'
+import { usePromptGenerator } from '@/hooks/usePromptGenerator'
 import { RhetoricalAnalysis } from '@/components/analysis/RhetoricalAnalysis'
 import { ManipulationAnalysis } from '@/components/analysis/ManipulationAnalysis'
 import { ContentSummary } from '@/components/analysis/ContentSummary'
 import { DiscoveryMode } from '@/components/analysis/DiscoveryMode'
 import { HealthObservations } from '@/components/analysis/HealthObservations'
+import { PromptGenerator, PromptGeneratorLoading, PromptGeneratorError, PromptGeneratorEmpty } from '@/components/analysis/PromptGenerator'
 import { AnalysisModeSelector, AnalysisProgressBar, CompactModeSelector } from '@/components/analysis/AnalysisModeSelector'
 import { healthApi } from '@/services/api'
-import type { TranscriptSegment, AnalysisMode, DiscoveryResult, HealthObservationResult } from '@/types'
+import type { TranscriptSegment, AnalysisMode, DiscoveryResult, HealthObservationResult, PromptGeneratorResult } from '@/types'
 
-type AnalysisType = 'rhetorical' | 'manipulation' | 'summary' | 'discovery' | 'health'
+type AnalysisType = 'rhetorical' | 'manipulation' | 'summary' | 'discovery' | 'health' | 'prompts'
 
 interface TranscriptDisplayProps {
   transcript: string
@@ -41,6 +43,9 @@ interface TranscriptDisplayProps {
   // Health observations (visual analysis)
   cachedHealth?: import('@/types').HealthObservationResult
   healthDate?: string
+  // Prompt Generator
+  cachedPrompts?: import('@/types').PromptGeneratorResult
+  promptsDate?: string
 }
 
 export default function TranscriptDisplay({
@@ -61,7 +66,9 @@ export default function TranscriptDisplay({
   cachedDiscovery,
   discoveryDate,
   cachedHealth,
-  healthDate
+  healthDate,
+  cachedPrompts,
+  promptsDate
 }: TranscriptDisplayProps) {
   const [copied, setCopied] = useState(false)
   const [showAnalysis, setShowAnalysis] = useState(cachedAnalysis || cachedManipulation || cachedSummary || cachedDiscovery ? true : false)
@@ -117,6 +124,18 @@ export default function TranscriptDisplay({
     reset: resetDiscovery
   } = useDiscovery()
 
+  // Prompt Generator hook (v6.0)
+  const {
+    loading: promptsLoading,
+    error: promptsError,
+    result: promptsResult,
+    isCached: isPromptsCached,
+    progress: promptsProgress,
+    generateFromVideoId: generatePrompts,
+    setFromCache: setPromptsFromCache,
+    reset: resetPrompts
+  } = usePromptGenerator()
+
   // Health observations state (v5.0)
   const [healthLoading, setHealthLoading] = useState(false)
   const [healthError, setHealthError] = useState<string | null>(null)
@@ -144,6 +163,8 @@ export default function TranscriptDisplay({
     ? discoveryLoading
     : analysisType === 'health'
     ? healthLoading
+    : analysisType === 'prompts'
+    ? promptsLoading
     : summaryLoading
   const analysisError = analysisType === 'rhetorical'
     ? rhetoricalError
@@ -153,6 +174,8 @@ export default function TranscriptDisplay({
     ? discoveryError
     : analysisType === 'health'
     ? healthError
+    : analysisType === 'prompts'
+    ? promptsError
     : summaryError
 
   // Reset analysis state when video changes
@@ -162,8 +185,9 @@ export default function TranscriptDisplay({
     resetSummary()
     resetDiscovery()
     resetHealth()
+    resetPrompts()
     setShowAnalysis(false)
-  }, [videoId, resetRhetorical, resetManipulation, resetSummary, resetDiscovery])
+  }, [videoId, resetRhetorical, resetManipulation, resetSummary, resetDiscovery, resetPrompts])
 
   // Load ALL cached analyses after reset (so user can switch between them)
   useEffect(() => {
@@ -203,11 +227,17 @@ export default function TranscriptDisplay({
       hasAnyCached = true
     }
 
+    // Load cached prompts (v6.0)
+    if (cachedPrompts) {
+      setPromptsFromCache(cachedPrompts)
+      hasAnyCached = true
+    }
+
     if (hasAnyCached) {
       setAnalysisType(defaultType)
       setShowAnalysis(true)
     }
-  }, [videoId, cachedAnalysis, cachedManipulation, cachedSummary, cachedDiscovery, cachedHealth, setRhetoricalFromCache, setManipulationFromCache, setSummaryFromCache, setDiscoveryFromCache])
+  }, [videoId, cachedAnalysis, cachedManipulation, cachedSummary, cachedDiscovery, cachedHealth, cachedPrompts, setRhetoricalFromCache, setManipulationFromCache, setSummaryFromCache, setDiscoveryFromCache, setPromptsFromCache])
 
   const handleCopy = async () => {
     const success = await copyToClipboard(transcript)
@@ -275,6 +305,15 @@ export default function TranscriptDisplay({
       } finally {
         setHealthLoading(false)
       }
+    } else if (analysisType === 'prompts') {
+      // Prompt Generator
+      await generatePrompts(videoId, {
+        videoId,
+        videoTitle,
+        videoAuthor: author,
+        includeDiscovery: true,
+        includeSummary: true
+      })
     } else {
       // Content Summary
       const videoUrl = videoId ? `https://youtube.com/watch?v=${videoId}` : undefined
@@ -294,6 +333,7 @@ export default function TranscriptDisplay({
     resetSummary()
     resetDiscovery()
     resetHealth()
+    resetPrompts()
   }
 
   // Re-analyze summary with fresh API call (bypasses cache)
@@ -453,9 +493,24 @@ export default function TranscriptDisplay({
                   🏥 Health
                   {healthResult && <span className="absolute -top-1 -right-1 w-2 h-2 bg-rose-500 rounded-full" />}
                 </button>
+                <button
+                  onClick={() => {
+                    setAnalysisType('prompts')
+                    setShowModeSelector(false)
+                    if (promptsResult) setShowAnalysis(true)
+                  }}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all relative ${
+                    analysisType === 'prompts'
+                      ? 'bg-white dark:bg-gray-600 text-violet-600 dark:text-violet-400 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  }`}
+                >
+                  ✨ Prompts
+                  {promptsResult && <span className="absolute -top-1 -right-1 w-2 h-2 bg-violet-500 rounded-full" />}
+                </button>
               </div>
               <span className="text-xs text-gray-500 dark:text-gray-500">
-                {analysisType === 'summary' ? 'Key concepts & export' : analysisType === 'manipulation' ? 'v2.0 - 5 dimensions' : analysisType === 'discovery' ? 'Kinoshita Pattern' : analysisType === 'health' ? 'Visual observations' : 'v1.0 - 4 pillars'}
+                {analysisType === 'summary' ? 'Key concepts & export' : analysisType === 'manipulation' ? 'v2.0 - 5 dimensions' : analysisType === 'discovery' ? 'Kinoshita Pattern' : analysisType === 'health' ? 'Visual observations' : analysisType === 'prompts' ? '7 AI tool prompts' : 'v1.0 - 4 pillars'}
               </span>
             </div>
 
@@ -499,6 +554,8 @@ export default function TranscriptDisplay({
                     ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white'
                     : analysisType === 'health'
                     ? 'bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white'
+                    : analysisType === 'prompts'
+                    ? 'bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 text-white'
                     : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white'
                 }`}
               >
@@ -528,12 +585,14 @@ export default function TranscriptDisplay({
                       ? 'Running Discovery Analysis...'
                       : analysisType === 'health'
                       ? 'Extracting & Analyzing Frames...'
+                      : analysisType === 'prompts'
+                      ? 'Generating 7 Prompts...'
                       : 'Analyzing Rhetoric...'
                     }
                   </>
                 ) : (
                   <>
-                    <span>{analysisType === 'summary' ? '📋' : analysisType === 'manipulation' ? '🔬' : analysisType === 'discovery' ? '🔬' : analysisType === 'health' ? '🏥' : '🎭'}</span>
+                    <span>{analysisType === 'summary' ? '📋' : analysisType === 'manipulation' ? '🔬' : analysisType === 'discovery' ? '🔬' : analysisType === 'health' ? '🏥' : analysisType === 'prompts' ? '✨' : '🎭'}</span>
                     {analysisType === 'summary'
                       ? 'Get Summary'
                       : analysisType === 'manipulation'
@@ -542,6 +601,8 @@ export default function TranscriptDisplay({
                       ? 'Run Discovery'
                       : analysisType === 'health'
                       ? 'Analyze Health'
+                      : analysisType === 'prompts'
+                      ? 'Generate Prompts'
                       : 'Analyze Rhetoric'
                     }
                   </>
@@ -567,6 +628,8 @@ export default function TranscriptDisplay({
                 ? 'Apply the Kinoshita Pattern to extract problems, techniques, and cross-domain applications. Discover transferable insights inspired by how EUV lithography was invented.'
                 : analysisType === 'health'
                 ? 'Extract video frames, detect human presence, and analyze for observable health features. EDUCATIONAL ONLY - NOT medical advice. Links to video timestamps.'
+                : analysisType === 'prompts'
+                ? 'Generate 7 production-ready prompts for AI tools: App Builder, Research, Devil\'s Advocate, Mermaid Diagrams, Sora, Nano Banana Pro, and Validation Frameworks. Uses Nate B Jones\' prompting techniques.'
                 : 'Analyze the transcript for rhetorical techniques using AI. Identifies persuasion strategies, scores the four pillars (Logos, Pathos, Ethos, Kairos), and detects quotes/attributions.'
               }
             </p>
@@ -604,6 +667,8 @@ export default function TranscriptDisplay({
             ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'
             : analysisType === 'health'
             ? 'bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800'
+            : analysisType === 'prompts'
+            ? 'bg-violet-50 dark:bg-violet-900/20 border-violet-200 dark:border-violet-800'
             : 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800'
         }`}>
           <div className="flex flex-col items-center justify-center text-center">
@@ -612,6 +677,8 @@ export default function TranscriptDisplay({
                 ? 'border-emerald-200 border-t-emerald-600'
                 : analysisType === 'health'
                 ? 'border-rose-200 border-t-rose-600'
+                : analysisType === 'prompts'
+                ? 'border-violet-200 border-t-violet-600'
                 : 'border-indigo-200 border-t-indigo-600'
             }`} />
             <h4 className={`font-medium mb-2 ${
@@ -619,6 +686,8 @@ export default function TranscriptDisplay({
                 ? 'text-emerald-800 dark:text-emerald-200'
                 : analysisType === 'health'
                 ? 'text-rose-800 dark:text-rose-200'
+                : analysisType === 'prompts'
+                ? 'text-violet-800 dark:text-violet-200'
                 : 'text-indigo-800 dark:text-indigo-200'
             }`}>
               {analysisType === 'summary'
@@ -629,6 +698,8 @@ export default function TranscriptDisplay({
                 ? 'Running Discovery Analysis...'
                 : analysisType === 'health'
                 ? 'Extracting & Analyzing Video Frames...'
+                : analysisType === 'prompts'
+                ? 'Generating 7 Production-Ready Prompts...'
                 : 'Analyzing Rhetorical Techniques...'
               }
             </h4>
@@ -655,11 +726,31 @@ export default function TranscriptDisplay({
               </div>
             )}
 
+            {/* Progress bar for prompts generation */}
+            {analysisType === 'prompts' && promptsProgress && (
+              <div className="w-full max-w-md mb-4">
+                <div className="text-sm text-violet-600 dark:text-violet-400 mb-2">
+                  {promptsProgress.phase_name}
+                </div>
+                <div className="h-2 bg-violet-100 dark:bg-violet-900/50 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-violet-500 transition-all duration-500"
+                    style={{ width: `${promptsProgress.progress}%` }}
+                  />
+                </div>
+                <div className="text-xs text-violet-500 dark:text-violet-400 mt-1">
+                  {promptsProgress.message}
+                </div>
+              </div>
+            )}
+
             <p className={`text-sm max-w-md ${
               analysisType === 'summary'
                 ? 'text-emerald-600 dark:text-emerald-400'
                 : analysisType === 'health'
                 ? 'text-rose-600 dark:text-rose-400'
+                : analysisType === 'prompts'
+                ? 'text-violet-600 dark:text-violet-400'
                 : 'text-indigo-600 dark:text-indigo-400'
             }`}>
               {analysisType === 'summary'
@@ -672,6 +763,8 @@ export default function TranscriptDisplay({
                 ? 'Applying the Kinoshita Pattern: extracting problems, techniques, cross-domain applications, and research trail. This takes about 30 seconds.'
                 : analysisType === 'health'
                 ? 'Downloading video, extracting frames every 30 seconds, detecting human presence, and analyzing with Claude vision. This may take 2-5 minutes depending on video length.'
+                : analysisType === 'prompts'
+                ? 'Generating 7 production-ready prompts using Nate B Jones\' techniques: App Builder, Research Deep-Dive, Devil\'s Advocate, Mermaid Diagrams, Sora, Nano Banana Pro, and Validation Frameworks. This takes about 45-60 seconds.'
                 : `Our AI is examining the transcript for persuasion techniques, scoring the four pillars of rhetoric, and ${verifyQuotes ? 'verifying quotes via web search' : 'identifying potential quotes'}. This may take 30-60 seconds.`
               }
             </p>
@@ -685,7 +778,8 @@ export default function TranscriptDisplay({
         (analysisType === 'manipulation' && manipulationResult) ||
         (analysisType === 'rhetorical' && rhetoricalResult) ||
         (analysisType === 'discovery' && discoveryResult) ||
-        (analysisType === 'health' && healthResult)
+        (analysisType === 'health' && healthResult) ||
+        (analysisType === 'prompts' && promptsResult)
       ) && (
         <div className="relative">
           <button
@@ -765,6 +859,23 @@ export default function TranscriptDisplay({
                 }
               }}
               isReanalyzing={healthLoading}
+            />
+          )}
+          {analysisType === 'prompts' && promptsResult && (
+            <PromptGenerator
+              result={promptsResult}
+              videoTitle={videoTitle}
+              videoAuthor={author}
+              videoUrl={videoId ? `https://youtube.com/watch?v=${videoId}` : undefined}
+              isCached={isPromptsCached}
+              onRegenerate={() => generatePrompts(videoId, {
+                videoId,
+                videoTitle,
+                videoAuthor: author,
+                includeDiscovery: true,
+                includeSummary: true
+              })}
+              isRegenerating={promptsLoading}
             />
           )}
         </div>
