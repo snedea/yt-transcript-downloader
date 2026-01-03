@@ -215,16 +215,8 @@ class TranscriptCacheService:
             item['has_health'] = bool(t.health_observation_result)
             item['has_prompts'] = bool(t.prompts_result)
 
-            # Extract keywords and other metadata from summary
-            if item['summary_result']:
-                summary = item['summary_result']
-                item['keywords'] = summary.get('keywords', [])
-                item['content_type'] = summary.get('content_type')
-                item['tldr'] = summary.get('tldr')
-            else:
-                item['keywords'] = []
-                item['content_type'] = None
-                item['tldr'] = None
+            # Note: content_type, keywords, tldr already included from _to_dict() via DB columns
+            # No need to extract from summary_result
 
             items.append(item)
 
@@ -290,16 +282,8 @@ class TranscriptCacheService:
             item['has_health'] = bool(t.health_observation_result)
             item['has_prompts'] = bool(t.prompts_result)
 
-            # Extract keywords and metadata from summary
-            if item['summary_result']:
-                summary = item['summary_result']
-                item['keywords'] = summary.get('keywords', [])
-                item['content_type'] = summary.get('content_type')
-                item['tldr'] = summary.get('tldr')
-            else:
-                item['keywords'] = []
-                item['content_type'] = None
-                item['tldr'] = None
+            # Note: content_type, keywords, tldr already included from _to_dict() via DB columns
+            # No need to extract from summary_result
 
             items.append(item)
 
