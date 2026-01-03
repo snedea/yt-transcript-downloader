@@ -373,10 +373,10 @@ async def get_all_tags(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Get all unique tags.
+    Get all unique tags for current user.
     """
     cache = get_cache_service()
-    tags = cache.get_all_tags(session, limit=limit)
+    tags = cache.get_all_tags(session, limit=limit, user_id=current_user.id)
     return {"tags": tags}
 
 
@@ -386,10 +386,10 @@ async def get_content_types(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Get content type distribution.
+    Get content type distribution for current user.
     """
     cache = get_cache_service()
-    counts = cache.get_content_type_counts(session)
+    counts = cache.get_content_type_counts(session, user_id=current_user.id)
     return {"content_types": counts}
 
 

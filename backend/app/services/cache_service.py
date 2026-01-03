@@ -148,7 +148,7 @@ class TranscriptCacheService:
         """Get transcript history for user."""
         query = select(Transcript).where(Transcript.user_id == user_id).order_by(Transcript.last_accessed.desc()).offset(offset).limit(limit)
         transcripts = session.exec(query).all()
-        
+
         # Minimal data for history
         items = []
         for t in transcripts:
@@ -161,8 +161,20 @@ class TranscriptCacheService:
             item['has_discovery'] = bool(t.discovery_result)
             item['has_health'] = bool(t.health_observation_result)
             item['has_prompts'] = bool(t.prompts_result)
+
+            # Extract keywords and other metadata from summary
+            if item['summary_result']:
+                summary = item['summary_result']
+                item['keywords'] = summary.get('keywords', [])
+                item['content_type'] = summary.get('content_type')
+                item['tldr'] = summary.get('tldr')
+            else:
+                item['keywords'] = []
+                item['content_type'] = None
+                item['tldr'] = None
+
             items.append(item)
-            
+
         return items
 
     def get_total_count(self, session: Session, user_id: str) -> int:
@@ -224,6 +236,18 @@ class TranscriptCacheService:
             item['has_discovery'] = bool(t.discovery_result)
             item['has_health'] = bool(t.health_observation_result)
             item['has_prompts'] = bool(t.prompts_result)
+
+            # Extract keywords and metadata from summary
+            if item['summary_result']:
+                summary = item['summary_result']
+                item['keywords'] = summary.get('keywords', [])
+                item['content_type'] = summary.get('content_type')
+                item['tldr'] = summary.get('tldr')
+            else:
+                item['keywords'] = []
+                item['content_type'] = None
+                item['tldr'] = None
+
             items.append(item)
 
         return items
@@ -350,11 +374,49 @@ class TranscriptCacheService:
         # Simplified implementation using standard search
         return self.search(session, query, user_id)
         
-    def get_all_tags(self, session: Session, limit: int = 100) -> Dict[str, int]:
-        return {} # Tags not implemented in new model yet
-        
-    def get_content_type_counts(self, session: Session) -> Dict[str, int]:
-        return {}
+    def get_all_tags(self, session: Session, limit: int = 100, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get all unique tags/keywords from summaries with counts."""
+        # Get all transcripts for the user (or all if no user specified)
+        query = select(Transcript)
+        if user_id:
+            query = query.where(Transcript.user_id == user_id)
+
+        transcripts = session.exec(query).all()
+
+        # Collect all keywords with counts
+        tag_counts: Dict[str, int] = {}
+        for t in transcripts:
+            if t.summary_result:
+                summary = self._parse_json(t.summary_result)
+                if summary and 'keywords' in summary:
+                    for keyword in summary['keywords']:
+                        tag_counts[keyword] = tag_counts.get(keyword, 0) + 1
+
+        # Convert to list of dicts sorted by count
+        tags = [{'tag': tag, 'count': count} for tag, count in tag_counts.items()]
+        tags.sort(key=lambda x: x['count'], reverse=True)
+
+        return tags[:limit]
+
+    def get_content_type_counts(self, session: Session, user_id: Optional[str] = None) -> Dict[str, int]:
+        """Get content type distribution."""
+        query = select(Transcript)
+        if user_id:
+            query = query.where(Transcript.user_id == user_id)
+
+        transcripts = session.exec(query).all()
+
+        # Count content types
+        type_counts: Dict[str, int] = {}
+        for t in transcripts:
+            if t.summary_result:
+                summary = self._parse_json(t.summary_result)
+                if summary and 'content_type' in summary:
+                    content_type = summary['content_type']
+                    if content_type:
+                        type_counts[content_type] = type_counts.get(content_type, 0) + 1
+
+        return type_counts
         
     def get_stats(self, session: Session, user_id: str) -> Dict[str, int]:
          transcripts = session.exec(select(Transcript).where(Transcript.user_id == user_id)).all()
