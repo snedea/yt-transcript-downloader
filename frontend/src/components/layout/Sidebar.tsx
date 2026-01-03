@@ -1,8 +1,9 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
+import { AccountSettings } from '@/components/AccountSettings'
 
 type ViewType = 'library' | 'new' | 'detail' | 'discover' | 'health' | 'prompts'
 
@@ -21,6 +22,7 @@ export function Sidebar({
 }: SidebarProps) {
   const { user, logout, isAuthenticated } = useAuth()
   const router = useRouter()
+  const [isAccountSettingsOpen, setIsAccountSettingsOpen] = useState(false)
 
   const navItems = [
     { id: 'library' as const, label: 'Library', icon: LibraryIcon },
@@ -106,7 +108,10 @@ export function Sidebar({
         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
           {isAuthenticated ? (
             <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700/50">
+              <button
+                onClick={() => setIsAccountSettingsOpen(true)}
+                className="flex items-center gap-3 px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer w-full"
+              >
                 <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center text-indigo-600 dark:text-indigo-300 font-bold">
                   {user?.full_name ? user.full_name[0].toUpperCase() : user?.email[0].toUpperCase()}
                 </div>
@@ -118,7 +123,7 @@ export function Sidebar({
                     {user?.email}
                   </div>
                 </div>
-              </div>
+              </button>
               <button
                 onClick={logout}
                 className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
@@ -173,6 +178,12 @@ export function Sidebar({
           )}
         </div>
       )}
+
+      {/* Account Settings Modal */}
+      <AccountSettings
+        isOpen={isAccountSettingsOpen}
+        onClose={() => setIsAccountSettingsOpen(false)}
+      />
     </aside>
   )
 }

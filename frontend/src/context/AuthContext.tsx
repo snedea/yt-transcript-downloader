@@ -7,6 +7,7 @@ import { api } from '@/services/api' // We will update api to handle auth header
 interface User {
     id: string
     email: string
+    username?: string
     full_name?: string
     avatar_url?: string
     is_active: boolean

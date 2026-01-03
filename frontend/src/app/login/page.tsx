@@ -47,11 +47,6 @@ export default function LoginPage() {
         }
     }
 
-    const handleOAuth = (provider: string) => {
-        // Redirect to backend OAuth endpoint
-        window.location.href = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/oauth/${provider}`
-    }
-
     return (
         <div className="flex min-h-screen flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gray-50 dark:bg-gray-900">
             <div className="w-full max-w-md space-y-8">
@@ -108,40 +103,12 @@ export default function LoginPage() {
                     </div>
                 </form>
 
-                <div className="mt-6">
-                    <div className="relative">
-                        <div className="absolute inset-0 flex items-center">
-                            <div className="w-full border-t border-gray-300" />
-                        </div>
-                        <div className="relative flex justify-center text-sm">
-                            <span className="bg-gray-50 dark:bg-gray-900 px-2 text-gray-500">
-                                Or continue with
-                            </span>
-                        </div>
-                    </div>
-
-                    <div className="mt-6 grid grid-cols-2 gap-3">
-                        <button
-                            onClick={() => handleOAuth('google')}
-                            className="flex w-full items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-                        >
-                            Google
-                        </button>
-                        <button
-                            onClick={() => handleOAuth('github')}
-                            className="flex w-full items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-                        >
-                            GitHub
-                        </button>
-                    </div>
-
-                    <p className="mt-10 text-center text-sm text-gray-500">
-                        Not a member?{' '}
-                        <Link href="/register" className="font-semibold leading-6 text-indigo-600 hover:text-indigo-500">
-                            Register now
-                        </Link>
-                    </p>
-                </div>
+                <p className="mt-6 text-center text-sm text-gray-500">
+                    Not a member?{' '}
+                    <Link href="/register" className="font-semibold leading-6 text-indigo-600 hover:text-indigo-500">
+                        Register now
+                    </Link>
+                </p>
             </div>
         </div>
     )

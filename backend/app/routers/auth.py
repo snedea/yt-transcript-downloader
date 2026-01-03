@@ -11,7 +11,7 @@ from app.models.auth import (
     Token, RefreshToken, OAuthAccount
 )
 from app.services.auth_service import auth_service
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_current_active_user
 from app.config import settings
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -304,3 +304,97 @@ async def oauth_callback(
         "token_type": "bearer",
         "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
     }
+
+
+@router.put("/me", response_model=UserRead)
+def update_user_profile(
+    user_update: UserUpdate,
+    current_user: User = Depends(get_current_active_user),
+    session: Session = Depends(get_session)
+) -> Any:
+    """
+    Update current user's profile.
+
+    Allows updating:
+    - email
+    - username
+    - full_name
+    - password
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Update request: {user_update.model_dump()}")
+    # Check if email is being changed and if it's already taken
+    if user_update.email and user_update.email != current_user.email:
+        existing_user = session.exec(
+            select(User).where(User.email == user_update.email)
+        ).first()
+        if existing_user:
+            raise HTTPException(
+                status_code=400,
+                detail="Email already registered"
+            )
+        current_user.email = user_update.email
+
+    # Check if username is being changed and if it's already taken
+    if user_update.username and user_update.username != current_user.username:
+        existing_user = session.exec(
+            select(User).where(User.username == user_update.username)
+        ).first()
+        if existing_user:
+            raise HTTPException(
+                status_code=400,
+                detail="Username already taken"
+            )
+        current_user.username = user_update.username
+
+    # Update full name
+    if user_update.full_name is not None:
+        current_user.full_name = user_update.full_name
+
+    # Update password if provided
+    if user_update.password:
+        current_user.hashed_password = auth_service.get_password_hash(user_update.password)
+        # Revoke all refresh tokens on password change for security
+        auth_service.revoke_all_user_tokens(current_user.id, session)
+
+    session.add(current_user)
+    session.commit()
+    session.refresh(current_user)
+
+    return current_user
+
+
+@router.delete("/me")
+def delete_user_account(
+    current_user: User = Depends(get_current_active_user),
+    session: Session = Depends(get_session)
+) -> Any:
+    """
+    Delete current user's account.
+
+    This is a permanent action that:
+    - Deletes all user's refresh tokens
+    - Deletes all user's OAuth accounts
+    - Deletes the user account
+    - Note: Transcripts are preserved due to composite primary key
+    """
+    # Delete all refresh tokens
+    tokens = session.exec(
+        select(RefreshToken).where(RefreshToken.user_id == current_user.id)
+    ).all()
+    for token in tokens:
+        session.delete(token)
+
+    # Delete all OAuth accounts
+    oauth_accounts = session.exec(
+        select(OAuthAccount).where(OAuthAccount.user_id == current_user.id)
+    ).all()
+    for oauth_account in oauth_accounts:
+        session.delete(oauth_account)
+
+    # Delete the user
+    session.delete(current_user)
+    session.commit()
+
+    return {"message": "Account deleted successfully"}
