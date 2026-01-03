@@ -142,6 +142,8 @@ export interface CacheHistoryItem {
 export interface CacheHistoryResponse {
   items: CacheHistoryItem[]
   total: number
+  limit: number
+  offset: number
 }
 
 export interface CachedTranscript extends TranscriptResponse {
@@ -421,6 +423,14 @@ export const cacheApi = {
    */
   rebuildFtsIndex: async (): Promise<void> => {
     await api.post('/api/cache/fts/rebuild')
+  },
+
+  /**
+   * Get a cached content item by ID (alias for getTranscript)
+   * Used by ContentDetailHub and other components
+   */
+  get: async (contentId: string): Promise<CachedTranscript | null> => {
+    return cacheApi.getTranscript(contentId)
   }
 }
 

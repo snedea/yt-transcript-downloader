@@ -62,9 +62,8 @@ async def get_cached_transcript(
     if not result:
         raise HTTPException(status_code=404, detail="Transcript not found in cache")
 
-    # Map the dict result to the response structure if needed, 
-    # but the dict returned by _to_dict already matches mostly.
-    # We construct the response explicitly to match old API contract.
+    # Map the dict result to the response structure.
+    # The dict from _to_dict includes all fields, including multi-source metadata.
     return {
         "cached": True,
         "video_id": result["video_id"],
@@ -78,6 +77,15 @@ async def get_cached_transcript(
         "created_at": result["created_at"],
         "last_accessed": result["last_accessed"],
         "access_count": result["access_count"],
+        # Multi-source metadata fields
+        "source_type": result.get("source_type"),
+        "source_url": result.get("source_url"),
+        "thumbnail_url": result.get("thumbnail_url"),
+        "raw_content_text": result.get("raw_content_text"),
+        "word_count": result.get("word_count"),
+        "character_count": result.get("character_count"),
+        "page_count": result.get("page_count"),
+        # Analysis results
         "analysis_result": result.get("analysis_result"),
         "analysis_date": result.get("analysis_date"),
         "has_analysis": result.get("analysis_result") is not None,
@@ -115,7 +123,9 @@ async def get_transcript_history(
 
     return TranscriptHistoryResponse(
         items=[TranscriptHistoryItem(**item) for item in items],
-        total=total
+        total=total,
+        limit=limit,
+        offset=offset
     )
 
 
@@ -500,6 +510,7 @@ async def get_cached_prompts(
 ):
     """
     Get cached prompt generator results.
+    Returns raw PromptGeneratorResult to match frontend expectations.
     """
     cache = get_cache_service()
     result = cache.get_prompts(session, video_id, current_user.id)
@@ -507,9 +518,6 @@ async def get_cached_prompts(
     if not result:
         raise HTTPException(status_code=404, detail="Prompts not found in cache")
 
-    return {
-        "video_id": video_id,
-        "prompts": result["prompts"],
-        "prompts_date": result["prompts_date"],
-        "cached": True
-    }
+    # Return the raw prompts result (PromptGeneratorResult)
+    # Frontend expects the result directly, not wrapped
+    return result["prompts"]
