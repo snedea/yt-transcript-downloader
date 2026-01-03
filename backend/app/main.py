@@ -8,8 +8,8 @@ from app.routers import auth, transcript, playlist, analysis, cache, content, he
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="YouTube Transcript Downloader API",
-    description="API for downloading and cleaning YouTube video transcripts",
+    title="Faceteer API",
+    description="Universal content analysis API - examine content from multiple perspectives",
     version="1.0.0"
 )
 

@@ -1,4 +1,4 @@
-# YouTube Content Analyzer
+# Faceteer
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/downloads/)
@@ -7,34 +7,51 @@
 [![Next.js 14](https://img.shields.io/badge/Next.js-14+-black.svg)](https://nextjs.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](https://www.docker.com/)
 
-> 🎬 A modern full-stack web application for downloading YouTube transcripts, analyzing rhetoric, and detecting manipulation in video content.
+> 💎 **Every angle, every insight—without surrendering hours.**
+>
+> Stop consuming content. Start commanding it. Faceteer examines any content from multiple perspectives—paste URLs, upload PDFs, or paste text, then facet it for rhetoric, manipulation, claims, and insights in minutes, not hours.
 
 ## ✨ Features
 
-### Transcript Downloads
-- 📹 **Single Video Downloads** - Fetch transcripts from any YouTube video with available captions
-- 📋 **Bulk Downloads** - Download transcripts from entire playlists or channels at once
-- 🤖 **AI-Powered Cleaning** - GPT-4o-mini integration to clean and format transcripts
-- 📎 **Export Options** - Copy to clipboard or download as `.txt` files
-- 💾 **Transcript Caching** - SQLite-backed cache for fast retrieval of previously fetched transcripts
+### Universal Content Ingestion
+- 🎬 **YouTube Videos** - Automatic transcript extraction with metadata
+- 📄 **PDF Documents** - Full-text extraction with AI-generated thumbnails
+- 🌐 **Web URLs** - Smart article extraction from any website
+- 📋 **Plain Text** - Paste content from emails, documents, anywhere
+- 🤖 **Smart Detection** - Automatically identifies content type and extracts appropriately
+- 📦 **Bulk Operations** - Process entire YouTube playlists or channels at once
 
-### Content Analysis (NEW)
-- 🔍 **5-Dimension Trust Analysis** - Evaluate content across:
+### Multi-Perspective Analysis
+- 🔍 **Rhetorical Analysis** - 5-dimension trust evaluation:
   - **Epistemic Integrity** - Scholarly vs sloppy reasoning
   - **Argument Quality** - Logic, evidence, and coherence
   - **Manipulation Risk** - Coercive persuasion markers
   - **Rhetorical Craft** - Style and persuasion techniques
   - **Fairness/Balance** - One-sidedness detection
-- 📊 **Claim Detection** - Extract and categorize claims (factual, causal, normative, predictions)
-- ✅ **Claim Verification** - Optional verification via web search (Deep mode)
-- 🎯 **Manipulation Technique Detection** - Identify 34+ manipulation techniques across language, reasoning, and propaganda categories
-- 📈 **Visual Reports** - Interactive charts, dimension scores, and detailed breakdowns
+- 🎯 **Manipulation Detection** - Identify 34+ manipulation techniques across language, reasoning, and propaganda
+- 📊 **Claim Extraction** - Auto-detect and categorize factual, causal, normative, and predictive claims
+- ✅ **Claim Verification** - Optional web search verification (Deep mode)
+- 💡 **Discovery Mode** - Extract key topics, themes, and insights from content
+- 🏥 **Health Observations** - AI vision analysis of video frames for health/wellness content
+- ✨ **Prompt Generation** - Generate AI prompts from content for various use cases
+- 🏷️ **Auto-Tagging** - Automatic keyword and tag extraction from summaries
+
+### Smart Library & Search
+- 📚 **Unified Library** - All your content (videos, PDFs, articles, text) in one place
+- 🔎 **Powerful Search** - Full-text search across all content with smart filters
+- 🏷️ **Tag Filtering** - Filter by auto-extracted tags and keywords
+- 📑 **Content Type Filters** - Filter by technical, educational, news, entertainment, etc.
+- 🔖 **Status Badges** - See at-a-glance what's been summarized or analyzed
+- 🎨 **Visual Cards** - AI-generated thumbnails for PDFs, YouTube thumbnails for videos
+- ⚡ **Recent History** - Quick access to recently viewed content
 
 ### User Experience
+- 🔐 **User Accounts** - Secure authentication with JWT (OAuth2 support)
 - 🌙 **Dark Mode** - Full dark mode support throughout
-- 📱 **Responsive Design** - Works on desktop and mobile
-- ⚡ **Fast & Efficient** - Parallelized downloads, cached results
-- 🕐 **History Panel** - Quick access to previously analyzed transcripts
+- 📱 **Responsive Design** - Works seamlessly on desktop and mobile
+- ⚡ **Smart Caching** - Instant retrieval of previously analyzed content
+- 📎 **Export Options** - Copy to clipboard or download as files
+- 🎯 **Progressive Analysis** - Run only the analysis you need, when you need it
 
 ## 📸 Screenshots
 

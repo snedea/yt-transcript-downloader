@@ -55,6 +55,7 @@ class TranscriptCacheService:
             'file_path': transcript.file_path,
             'thumbnail_path': transcript.thumbnail_path,
             'thumbnail_url': file_storage.get_thumbnail_url(transcript.thumbnail_path),  # Convert path to URL
+            'raw_content_text': transcript.raw_content_text,
             'word_count': transcript.word_count,
             'character_count': transcript.character_count,
             'page_count': transcript.page_count,
@@ -114,6 +115,7 @@ class TranscriptCacheService:
         source_url: Optional[str] = None,
         file_path: Optional[str] = None,
         thumbnail_path: Optional[str] = None,
+        raw_content_text: Optional[str] = None,
         word_count: int = 0,
         character_count: int = 0,
         page_count: Optional[int] = None
@@ -151,6 +153,7 @@ class TranscriptCacheService:
                 existing.source_url = source_url
                 existing.file_path = file_path
                 existing.thumbnail_path = thumbnail_path
+                existing.raw_content_text = raw_content_text
                 existing.word_count = word_count
                 existing.character_count = character_count
                 existing.page_count = page_count
@@ -172,6 +175,7 @@ class TranscriptCacheService:
                     source_url=source_url,
                     file_path=file_path,
                     thumbnail_path=thumbnail_path,
+                    raw_content_text=raw_content_text,
                     word_count=word_count,
                     character_count=character_count,
                     page_count=page_count,

@@ -76,6 +76,105 @@ async def extract_content_endpoint(
         raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}")
 
 
+@router.post("/submit")
+async def submit_content_unified(
+    content_input: str,
+    input_type: Optional[str] = None,
+    title_override: Optional[str] = None,
+    save_to_library: bool = True,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+) -> dict:
+    """
+    Unified content submission endpoint for URLs and plain text.
+
+    Auto-detects:
+    - YouTube URLs
+    - Web article URLs
+    - Plain text (when not a URL)
+
+    Args:
+        content_input: URL or plain text content
+        input_type: Optional type hint ("url" or "text")
+        title_override: Optional custom title
+        save_to_library: Whether to save to user's library (default: True)
+
+    Returns:
+        {
+            "content": UnifiedContent object,
+            "library_id": source_id,
+            "source_type": detected type
+        }
+    """
+    from app.services.content_detector import detect_source_type
+    from app.services.cache_service import get_cache_service
+
+    try:
+        # Detect content type
+        source_type, normalized_source, video_id = detect_source_type(content_input)
+
+        logger.info(f"Detected source_type: {source_type}, normalized: {normalized_source}")
+
+        # Extract content
+        content = await extract_content(
+            source=normalized_source or content_input,
+            source_type=source_type
+        )
+
+        # Override title if provided
+        if title_override:
+            content.title = title_override
+
+        if not content.extraction_success:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Extraction failed: {content.extraction_error}"
+            )
+
+        # Save to library if requested
+        library_id = content.source_id
+        if save_to_library:
+            cache_service = get_cache_service()
+
+            # Prepare raw_content_text for plain text sources
+            raw_content_text = None
+            if source_type == ContentSourceType.PLAIN_TEXT:
+                raw_content_text = content_input  # Store original pasted text
+
+            success = cache_service.save(
+                session=session,
+                video_id=content.source_id,
+                video_title=content.title,
+                transcript_text=content.text,
+                user_id=current_user.id,
+                author=content.author,
+                upload_date=content.upload_date,
+                source_type=source_type.value,
+                source_url=content.source_url,
+                raw_content_text=raw_content_text,
+                word_count=content.word_count,
+                character_count=content.character_count
+            )
+
+            if not success:
+                logger.warning(f"Failed to save content {content.source_id} to library")
+
+        return {
+            "success": True,
+            "content": content.dict(),
+            "library_id": library_id,
+            "source_type": source_type.value,
+            "message": f"Content captured successfully ({source_type.value})"
+        }
+
+    except ValueError as e:
+        logger.error(f"Content submission error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error during content submission: {e}")
+        raise HTTPException(status_code=500, detail=f"Submission failed: {str(e)}")
+
+
 @router.post("/upload", response_model=ContentUploadResponse)
 async def upload_content(
     file: UploadFile = File(...),

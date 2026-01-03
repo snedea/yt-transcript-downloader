@@ -25,6 +25,7 @@ class TranscriptBase(SQLModel):
     source_url: Optional[str] = None  # Original filename or URL
     file_path: Optional[str] = None  # Path to stored file (for PDFs)
     thumbnail_path: Optional[str] = None  # Path to thumbnail image
+    raw_content_text: Optional[str] = None  # Original pasted text (for plain_text source_type)
 
     # Content metadata
     word_count: int = Field(default=0)

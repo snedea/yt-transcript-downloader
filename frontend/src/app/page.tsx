@@ -13,7 +13,7 @@ import { PromptGeneratorView } from '@/components/prompts/PromptGeneratorView'
 type ViewType = 'library' | 'new' | 'detail' | 'discover' | 'health' | 'prompts'
 type NewVideoTab = 'single' | 'bulk'
 
-const SIDEBAR_COLLAPSED_KEY = 'yt-analyzer-sidebar-collapsed'
+const SIDEBAR_COLLAPSED_KEY = 'faceteer-sidebar-collapsed'
 
 export default function Home() {
   const [currentView, setCurrentView] = useState<ViewType>('library')

@@ -54,7 +54,7 @@ export function Sidebar({
             onClick={() => onViewChange('library')}
             className="text-lg font-bold text-gray-900 dark:text-white truncate hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer select-none"
           >
-            YT Analyzer
+            💎 Faceteer
           </button>
         )}
         {collapsed && (
@@ -62,7 +62,7 @@ export function Sidebar({
             onClick={() => onViewChange('library')}
             className="text-lg font-bold text-gray-900 dark:text-white mx-auto hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer select-none"
           >
-            YT
+            💎
           </button>
         )}
         {onToggleCollapse && (
