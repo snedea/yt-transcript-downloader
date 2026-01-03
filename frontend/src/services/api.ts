@@ -657,6 +657,33 @@ export const contentApi = {
       params: { source }
     })
     return response.data
+  },
+
+  /**
+   * Submit content (URL or plain text) - UNIFIED ENTRY POINT
+   * Auto-detects type and saves to library
+   */
+  submit: async (
+    contentInput: string,
+    options?: {
+      inputType?: 'url' | 'text'
+      title?: string
+      saveToLibrary?: boolean
+    }
+  ): Promise<{
+    success: boolean
+    content: UnifiedContent
+    library_id: string
+    source_type: string
+    message: string
+  }> => {
+    const response = await api.post('/api/content/submit', {
+      content_input: contentInput,
+      input_type: options?.inputType,
+      title_override: options?.title,
+      save_to_library: options?.saveToLibrary ?? true
+    })
+    return response.data
   }
 }
 
