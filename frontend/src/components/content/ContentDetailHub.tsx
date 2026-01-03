@@ -108,6 +108,12 @@ export function ContentDetailHub({ contentId, onBack }: ContentDetailHubProps) {
 
     try {
       const data = await cacheApi.get(contentId)
+
+      if (!data) {
+        setError('Content not found')
+        return
+      }
+
       setContent(data)
 
       // Load cached analyses if they exist
