@@ -131,12 +131,30 @@ export interface CacheHistoryItem {
   video_id: string
   video_title: string
   author: string | null
-  is_cleaned: boolean
-  has_analysis: boolean
-  has_summary: boolean
+  upload_date?: string | null
   created_at: string
   last_accessed: string
   access_count: number
+  tokens_used: number
+  is_cleaned: boolean
+  // Multi-source support fields
+  source_type: string
+  source_url?: string | null
+  file_path?: string | null
+  thumbnail_url?: string | null
+  raw_content_text?: string | null
+  // Content metadata
+  word_count: number
+  character_count: number
+  page_count?: number | null
+  // Analysis flags
+  has_analysis: boolean
+  has_summary: boolean
+  has_manipulation: boolean
+  has_rhetorical: boolean
+  has_discovery: boolean
+  has_health: boolean
+  has_prompts: boolean
 }
 
 export interface CacheHistoryResponse {
@@ -151,6 +169,14 @@ export interface CachedTranscript extends TranscriptResponse {
   created_at: string
   last_accessed: string
   access_count: number
+  // Multi-source support fields
+  source_type?: 'youtube' | 'pdf' | 'web_url' | 'plain_text'
+  source_url?: string | null
+  thumbnail_url?: string | null
+  raw_content_text?: string | null
+  word_count?: number
+  character_count?: number
+  page_count?: number | null
   // Rhetorical analysis (v1.0 - 4 pillars)
   analysis_result?: AnalysisResult
   analysis_date?: string
