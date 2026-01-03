@@ -103,6 +103,7 @@ class TranscriptHistoryItem(SQLModel):
     source_url: Optional[str] = None
     file_path: Optional[str] = None
     thumbnail_url: Optional[str] = None  # Note: URL not path (for API response)
+    raw_content_text: Optional[str] = None  # Original pasted text (for plain_text sources)
 
     # Content metadata
     word_count: int = 0
