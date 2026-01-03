@@ -210,11 +210,12 @@ export function ContentDetailHub({ contentId, onBack }: ContentDetailHubProps) {
     setHealthError(null)
 
     try {
+      const videoUrl = `https://youtube.com/watch?v=${content.video_id}`
       const result = await healthApi.analyzeHealth(
-        content.video_id,
+        videoUrl,
         {
-          videoTitle: content.video_title,
-          videoUrl: `https://youtube.com/watch?v=${content.video_id}`
+          videoId: content.video_id,
+          videoTitle: content.video_title
         }
       )
       setHealthResult(result)
