@@ -26,9 +26,28 @@ class TranscriptCacheService:
 
     def _to_dict(self, transcript: Transcript) -> Dict[str, Any]:
         """Convert Transcript model to dictionary with parsed JSON fields."""
-        result = transcript.model_dump()
-        
-        # Manually parse JSON string fields back to dicts/lists
+        # Build dictionary explicitly to ensure all fields are included
+        result = {
+            'video_id': transcript.video_id,
+            'user_id': transcript.user_id,
+            'video_title': transcript.video_title,
+            'author': transcript.author,
+            'upload_date': transcript.upload_date,
+            'transcript': transcript.transcript,
+            'tokens_used': transcript.tokens_used,
+            'is_cleaned': transcript.is_cleaned,
+            'created_at': transcript.created_at,
+            'last_accessed': transcript.last_accessed,
+            'access_count': transcript.access_count,
+            'analysis_date': transcript.analysis_date,
+            'summary_date': transcript.summary_date,
+            'manipulation_date': transcript.manipulation_date,
+            'discovery_date': transcript.discovery_date,
+            'health_observation_date': transcript.health_observation_date,
+            'prompts_date': transcript.prompts_date,
+        }
+
+        # Parse JSON string fields back to dicts/lists
         result['transcript_data'] = self._parse_json(transcript.transcript_data)
         result['analysis_result'] = self._parse_json(transcript.analysis_result)
         result['summary_result'] = self._parse_json(transcript.summary_result)
@@ -36,7 +55,7 @@ class TranscriptCacheService:
         result['discovery_result'] = self._parse_json(transcript.discovery_result)
         result['health_observation_result'] = self._parse_json(transcript.health_observation_result)
         result['prompts_result'] = self._parse_json(transcript.prompts_result)
-        
+
         return result
 
     def get(self, session: Session, video_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
