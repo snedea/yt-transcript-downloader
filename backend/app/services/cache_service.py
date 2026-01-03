@@ -485,7 +485,22 @@ class TranscriptCacheService:
 
         # Execute and convert to dicts
         transcripts = session.exec(stmt).all()
-        return [self._to_dict(t) for t in transcripts]
+
+        # Convert to dict and add 'has_X' flags (same as get_history and search)
+        items = []
+        for t in transcripts:
+            item = self._to_dict(t)
+            # Add 'has_X' flags
+            item['has_analysis'] = bool(t.analysis_result)
+            item['has_summary'] = bool(t.summary_result)
+            item['has_manipulation'] = bool(t.manipulation_result)
+            item['has_rhetorical'] = bool(t.analysis_result)
+            item['has_discovery'] = bool(t.discovery_result)
+            item['has_health'] = bool(t.health_observation_result)
+            item['has_prompts'] = bool(t.prompts_result)
+            items.append(item)
+
+        return items
         
     def get_all_tags(self, session: Session, limit: int = 100, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get all unique tags/keywords from the keywords column with counts."""
