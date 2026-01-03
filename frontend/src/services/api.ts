@@ -177,7 +177,7 @@ export interface CachedTranscript extends TranscriptResponse {
 
 // Library/Search API types
 export interface LibraryItem {
-  video_id: string
+  video_id: string  // Now semantically "source_id"
   video_title: string
   author: string | null
   is_cleaned: boolean
@@ -195,6 +195,15 @@ export interface LibraryItem {
   created_at: string
   last_accessed: string
   access_count: number
+  // Multi-source support fields
+  source_type: 'youtube' | 'pdf' | 'web_url' | 'plain_text'
+  source_url?: string | null  // Original filename or URL
+  file_path?: string | null   // Path to stored PDF file
+  thumbnail_url?: string | null  // URL to thumbnail image
+  thumbnail_path?: string | null // Path to thumbnail (legacy)
+  word_count?: number
+  character_count?: number
+  page_count?: number | null  // For PDFs
 }
 
 export interface SearchFilters {

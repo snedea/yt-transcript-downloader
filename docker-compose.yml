@@ -45,6 +45,7 @@ services:
       - OAUTH_REDIRECT_BASE=${OAUTH_REDIRECT_BASE:-https://yt.llam.ai}
     volumes:
       - transcript_cache:/app/data
+      - uploads_storage:/app/uploads  # PDF and thumbnail file storage
       - ~/.claude:/home/appuser/.claude  # Mount Claude credentials for CLI (needs write for debug logs)
     restart: always
     healthcheck:
@@ -72,5 +73,7 @@ services:
 volumes:
   transcript_cache:
     name: yt-transcript-cache
+  uploads_storage:
+    name: yt-uploads-storage
   caddy_data:
   caddy_config:

@@ -26,6 +26,10 @@ class TranscriptCacheService:
 
     def _to_dict(self, transcript: Transcript) -> Dict[str, Any]:
         """Convert Transcript model to dictionary with parsed JSON fields."""
+        from app.services.file_storage_service import get_file_storage_service
+
+        file_storage = get_file_storage_service()
+
         # Build dictionary explicitly to ensure all fields are included
         result = {
             'video_id': transcript.video_id,
@@ -45,6 +49,15 @@ class TranscriptCacheService:
             'discovery_date': transcript.discovery_date,
             'health_observation_date': transcript.health_observation_date,
             'prompts_date': transcript.prompts_date,
+            # Multi-source fields
+            'source_type': transcript.source_type,
+            'source_url': transcript.source_url,
+            'file_path': transcript.file_path,
+            'thumbnail_path': transcript.thumbnail_path,
+            'thumbnail_url': file_storage.get_thumbnail_url(transcript.thumbnail_path),  # Convert path to URL
+            'word_count': transcript.word_count,
+            'character_count': transcript.character_count,
+            'page_count': transcript.page_count,
         }
 
         # Parse JSON string fields back to dicts/lists
@@ -95,18 +108,36 @@ class TranscriptCacheService:
         upload_date: Optional[str] = None,
         transcript_data: Optional[List[Dict]] = None,
         tokens_used: int = 0,
-        is_cleaned: bool = False
+        is_cleaned: bool = False,
+        # Multi-source support parameters
+        source_type: str = "youtube",
+        source_url: Optional[str] = None,
+        file_path: Optional[str] = None,
+        thumbnail_path: Optional[str] = None,
+        word_count: int = 0,
+        character_count: int = 0,
+        page_count: Optional[int] = None
     ) -> bool:
         """
-        Save or update a transcript in the cache.
+        Save or update content in the cache (videos, PDFs, etc.).
+
+        Supports multi-source content types: youtube, pdf, web_url, plain_text.
         """
         try:
             # Check for existing
             query = select(Transcript).where(Transcript.video_id == video_id, Transcript.user_id == user_id)
             existing = session.exec(query).first()
-            
+
             transcript_data_json = json.dumps(transcript_data) if transcript_data else None
             now = datetime.utcnow()
+
+            # Calculate word_count if not provided and transcript exists
+            if word_count == 0 and transcript_text:
+                word_count = len(transcript_text.split())
+
+            # Calculate character_count if not provided
+            if character_count == 0 and transcript_text:
+                character_count = len(transcript_text)
 
             if existing:
                 existing.video_title = video_title
@@ -116,6 +147,13 @@ class TranscriptCacheService:
                 existing.transcript_data = transcript_data_json
                 existing.tokens_used = tokens_used
                 existing.is_cleaned = is_cleaned
+                existing.source_type = source_type
+                existing.source_url = source_url
+                existing.file_path = file_path
+                existing.thumbnail_path = thumbnail_path
+                existing.word_count = word_count
+                existing.character_count = character_count
+                existing.page_count = page_count
                 existing.last_accessed = now
                 existing.access_count += 1
                 session.add(existing)
@@ -130,6 +168,13 @@ class TranscriptCacheService:
                     transcript_data=transcript_data_json,
                     tokens_used=tokens_used,
                     is_cleaned=is_cleaned,
+                    source_type=source_type,
+                    source_url=source_url,
+                    file_path=file_path,
+                    thumbnail_path=thumbnail_path,
+                    word_count=word_count,
+                    character_count=character_count,
+                    page_count=page_count,
                     created_at=now,
                     last_accessed=now,
                     access_count=1

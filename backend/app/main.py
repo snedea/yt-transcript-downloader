@@ -1,6 +1,8 @@
 """FastAPI application entry point"""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 from app.config import settings
 from app.routers import auth, transcript, playlist, analysis, cache, content, health
 
@@ -28,6 +30,19 @@ app.include_router(analysis.router)  # Already has /api/analysis prefix
 app.include_router(cache.router)  # Already has /api/cache prefix
 app.include_router(content.router)  # Already has /api/content prefix
 app.include_router(health.router)  # Already has /api/health prefix
+
+# Mount static file directories for PDF and thumbnail serving
+UPLOADS_DIR = Path("uploads")
+PDF_DIR = UPLOADS_DIR / "pdfs"
+THUMBNAIL_DIR = UPLOADS_DIR / "thumbnails"
+
+# Create directories if they don't exist
+PDF_DIR.mkdir(parents=True, exist_ok=True)
+THUMBNAIL_DIR.mkdir(parents=True, exist_ok=True)
+
+# Mount static files
+app.mount("/api/files/pdf", StaticFiles(directory=str(PDF_DIR)), name="pdfs")
+app.mount("/api/files/thumbnail", StaticFiles(directory=str(THUMBNAIL_DIR)), name="thumbnails")
 
 
 @app.get("/health")

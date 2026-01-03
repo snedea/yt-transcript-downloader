@@ -23,9 +23,21 @@ const CONTENT_TYPE_INFO: Record<ContentType, { label: string; icon: string; colo
 }
 
 export function VideoCard({ item, onClick }: VideoCardProps) {
-  const thumbnail = `https://img.youtube.com/vi/${item.video_id}/mqdefault.jpg`
+  // Dynamic thumbnail based on source type
+  const thumbnail = item.source_type === 'youtube'
+    ? `https://img.youtube.com/vi/${item.video_id}/mqdefault.jpg`
+    : item.thumbnail_url || '/placeholder-pdf.jpg'
+
   const contentType = (item.content_type as ContentType) || 'other'
   const contentTypeInfo = CONTENT_TYPE_INFO[contentType] || CONTENT_TYPE_INFO.other
+
+  // Source type display
+  const sourceTypeLabel = {
+    youtube: '▶️ Video',
+    pdf: '📄 PDF',
+    web_url: '🌐 Web',
+    plain_text: '📝 Text'
+  }[item.source_type || 'youtube']
 
   return (
     <div
@@ -47,7 +59,18 @@ export function VideoCard({ item, onClick }: VideoCardProps) {
           alt={item.video_title}
           className="w-full h-full object-cover"
           loading="lazy"
+          onError={(e) => {
+            // Fallback if thumbnail fails to load
+            e.currentTarget.src = '/placeholder-pdf.jpg'
+          }}
         />
+
+        {/* Source type badge - top left (for non-YouTube content) */}
+        {item.source_type && item.source_type !== 'youtube' && (
+          <span className="absolute top-2 left-2 bg-gray-800/80 text-white text-xs px-2 py-1 rounded font-medium">
+            {sourceTypeLabel}
+          </span>
+        )}
 
         {/* Status badges - top right */}
         <div className="absolute top-2 right-2 flex gap-1">
@@ -103,11 +126,25 @@ export function VideoCard({ item, onClick }: VideoCardProps) {
           {item.video_title}
         </h3>
 
-        {item.author && (
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">
-            {item.author}
-          </p>
-        )}
+        <div className="flex items-center justify-between gap-2 mt-1">
+          {item.author && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+              {item.author}
+            </p>
+          )}
+
+          {/* Show page count for PDFs, word count for other non-video sources */}
+          {item.source_type === 'pdf' && item.page_count && (
+            <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">
+              {item.page_count} {item.page_count === 1 ? 'page' : 'pages'}
+            </span>
+          )}
+          {item.source_type && item.source_type !== 'youtube' && item.source_type !== 'pdf' && item.word_count && (
+            <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">
+              {item.word_count.toLocaleString()} words
+            </span>
+          )}
+        </div>
 
         {/* TLDR preview */}
         {item.tldr && (

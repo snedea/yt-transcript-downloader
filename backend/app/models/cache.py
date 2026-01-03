@@ -20,6 +20,17 @@ class TranscriptBase(SQLModel):
     tokens_used: int = 0
     is_cleaned: bool = False
 
+    # Multi-source support fields
+    source_type: str = Field(default="youtube")  # youtube, pdf, web_url, plain_text
+    source_url: Optional[str] = None  # Original filename or URL
+    file_path: Optional[str] = None  # Path to stored file (for PDFs)
+    thumbnail_path: Optional[str] = None  # Path to thumbnail image
+
+    # Content metadata
+    word_count: int = Field(default=0)
+    character_count: int = Field(default=0)
+    page_count: Optional[int] = None  # For PDFs
+
     # Analysis fields (JSON strings)
     analysis_result: Optional[str] = None
     analysis_date: Optional[str] = None
@@ -85,6 +96,18 @@ class TranscriptHistoryItem(SQLModel):
     access_count: int
     tokens_used: int
     is_cleaned: bool
+
+    # Multi-source support fields
+    source_type: str = "youtube"
+    source_url: Optional[str] = None
+    file_path: Optional[str] = None
+    thumbnail_url: Optional[str] = None  # Note: URL not path (for API response)
+
+    # Content metadata
+    word_count: int = 0
+    character_count: int = 0
+    page_count: Optional[int] = None
+
     # Flags for which analysis types are available
     has_analysis: bool = False
     has_summary: bool = False
