@@ -51,6 +51,11 @@ class TranscriptBase(SQLModel):
     prompts_result: Optional[str] = None
     prompts_date: Optional[str] = None
 
+    # Content metadata for library filtering and display
+    content_type: Optional[str] = None  # e.g., programming_technical, tutorial_howto, educational
+    keywords: Optional[str] = None  # JSON array of keywords/tags
+    tldr: Optional[str] = None  # Short summary for card preview
+
 
 class Transcript(TranscriptBase, table=True):
     """

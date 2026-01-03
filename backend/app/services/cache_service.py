@@ -59,6 +59,9 @@ class TranscriptCacheService:
             'word_count': transcript.word_count,
             'character_count': transcript.character_count,
             'page_count': transcript.page_count,
+            # Content metadata for library filtering
+            'content_type': transcript.content_type,
+            'tldr': transcript.tldr,
         }
 
         # Parse JSON string fields back to dicts/lists
@@ -69,6 +72,7 @@ class TranscriptCacheService:
         result['discovery_result'] = self._parse_json(transcript.discovery_result)
         result['health_observation_result'] = self._parse_json(transcript.health_observation_result)
         result['prompts_result'] = self._parse_json(transcript.prompts_result)
+        result['keywords'] = self._parse_json(transcript.keywords)
 
         return result
 
@@ -326,6 +330,25 @@ class TranscriptCacheService:
         if transcript:
             transcript.summary_result = json.dumps(summary_result)
             transcript.summary_date = datetime.utcnow().isoformat()
+
+            # Extract metadata from summary for library filtering
+            if isinstance(summary_result, dict):
+                # Extract content type
+                if 'content_type' in summary_result:
+                    transcript.content_type = summary_result['content_type']
+
+                # Extract keywords/tags
+                if 'keywords' in summary_result:
+                    transcript.keywords = json.dumps(summary_result['keywords']) if isinstance(summary_result['keywords'], list) else None
+                elif 'tags' in summary_result:
+                    transcript.keywords = json.dumps(summary_result['tags']) if isinstance(summary_result['tags'], list) else None
+
+                # Extract TLDR
+                if 'tldr' in summary_result:
+                    transcript.tldr = summary_result['tldr']
+                elif 'one_sentence_summary' in summary_result:
+                    transcript.tldr = summary_result['one_sentence_summary']
+
             session.add(transcript)
             session.commit()
             return True
