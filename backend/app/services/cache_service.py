@@ -209,9 +209,24 @@ class TranscriptCacheService:
             Transcript.user_id == user_id,
             or_(col(Transcript.video_title).contains(query_str), col(Transcript.transcript).contains(query_str))
         ).order_by(Transcript.last_accessed.desc()).limit(limit)
-        
+
         transcripts = session.exec(query).all()
-        return [self._to_dict(t) for t in transcripts]
+
+        # Convert to dict and add 'has_X' flags
+        items = []
+        for t in transcripts:
+            item = self._to_dict(t)
+            # Add 'has_X' flags
+            item['has_analysis'] = bool(t.analysis_result)
+            item['has_summary'] = bool(t.summary_result)
+            item['has_manipulation'] = bool(t.manipulation_result)
+            item['has_rhetorical'] = bool(t.analysis_result)
+            item['has_discovery'] = bool(t.discovery_result)
+            item['has_health'] = bool(t.health_observation_result)
+            item['has_prompts'] = bool(t.prompts_result)
+            items.append(item)
+
+        return items
 
     # Analysis helpers
     def save_analysis(self, session: Session, video_id: str, analysis_result: Dict[str, Any], user_id: str) -> bool:
