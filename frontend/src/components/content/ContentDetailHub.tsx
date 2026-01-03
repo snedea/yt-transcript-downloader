@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { cacheApi, healthApi } from '@/services/api'
-import { downloadTextFile, copyToClipboard } from '@/utils/download'
+import { downloadTextFile, copyToClipboard, formatTranscriptWithTimestamps } from '@/utils/download'
 
 // Import hooks
 import { useContentSummary } from '@/hooks/useContentSummary'
@@ -85,6 +85,7 @@ export function ContentDetailHub({ contentId, onBack }: ContentDetailHubProps) {
   const [error, setError] = useState<string | null>(null)
   const [expandedAnalysis, setExpandedAnalysis] = useState<AnalysisType | null>(null)
   const [copied, setCopied] = useState(false)
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false)
 
   // Initialize all analysis hooks
   const summary = useContentSummary()
@@ -236,9 +237,27 @@ export function ContentDetailHub({ contentId, onBack }: ContentDetailHubProps) {
     }
   }
 
-  const handleDownload = () => {
+  const handleDownload = (withTimestamps: boolean = false) => {
     if (!content) return
-    downloadTextFile(content.transcript, `${content.video_title}.txt`)
+
+    let textContent = content.transcript
+
+    // If timestamps requested and transcript_data is available
+    if (withTimestamps && content.transcript_data) {
+      try {
+        const transcriptData = typeof content.transcript_data === 'string'
+          ? JSON.parse(content.transcript_data)
+          : content.transcript_data
+        textContent = formatTranscriptWithTimestamps(transcriptData)
+      } catch (err) {
+        console.error('Failed to format with timestamps:', err)
+        // Fall back to plain text
+      }
+    }
+
+    const suffix = withTimestamps ? ' (with timestamps)' : ''
+    downloadTextFile(textContent, `${content.video_title}${suffix}.txt`)
+    setShowDownloadMenu(false)
   }
 
   const getSourceIcon = (sourceType: string) => {
@@ -519,16 +538,54 @@ export function ContentDetailHub({ contentId, onBack }: ContentDetailHubProps) {
               >
                 {copied ? '✓ Copied' : 'Copy'}
               </button>
-              <button
-                onClick={handleDownload}
-                className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-md transition-colors"
-              >
-                Download
-              </button>
+
+              {/* Download Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowDownloadMenu(!showDownloadMenu)}
+                  className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-md transition-colors flex items-center gap-1"
+                >
+                  Download
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {showDownloadMenu && (
+                  <>
+                    {/* Backdrop */}
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setShowDownloadMenu(false)}
+                    />
+
+                    {/* Menu */}
+                    <div className="absolute right-0 mt-1 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-20">
+                      <button
+                        onClick={() => handleDownload(false)}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        <div className="font-medium">Plain Text</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Without timestamps</div>
+                      </button>
+
+                      {content.transcript_data && (
+                        <button
+                          onClick={() => handleDownload(true)}
+                          className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        >
+                          <div className="font-medium">With Timestamps</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">Includes time markers</div>
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
           <div className="prose dark:prose-invert max-w-none">
-            <pre className="whitespace-pre-wrap font-sans text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg max-h-96 overflow-y-auto">
+            <pre className="whitespace-pre-wrap font-sans text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg max-h-48 overflow-y-auto">
               {content.transcript}
             </pre>
           </div>
