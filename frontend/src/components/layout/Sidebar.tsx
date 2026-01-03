@@ -24,13 +24,8 @@ export function Sidebar({
   const router = useRouter()
   const [isAccountSettingsOpen, setIsAccountSettingsOpen] = useState(false)
 
-  const navItems = [
-    { id: 'library' as const, label: 'Library', icon: LibraryIcon },
-    { id: 'new' as const, label: 'New Video', icon: PlusIcon },
-    { id: 'discover' as const, label: 'Discovery', icon: DiscoverIcon },
-    { id: 'prompts' as const, label: 'Prompts', icon: PromptsIcon },
-    { id: 'health' as const, label: 'Health', icon: HealthIcon },
-  ]
+  // Removed old navigation items - now just use Faceteer header as home button
+  // All content access happens through Library + ContentDetailHub
 
   const handleLoginClick = () => {
     router.push('/login')
@@ -82,26 +77,8 @@ export function Sidebar({
         )}
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 p-2 space-y-1">
-        {navItems.map(item => (
-          <button
-            key={item.id}
-            onClick={() => onViewChange(item.id)}
-            className={`
-              w-full flex items-center gap-3 px-3 py-2.5 rounded-lg
-              transition-colors text-left
-              ${(currentView === item.id || (item.id === 'library' && currentView === 'detail'))
-                ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-medium'
-                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }
-            `}
-          >
-            <item.icon className="w-5 h-5 flex-shrink-0" />
-            {!collapsed && <span>{item.label}</span>}
-          </button>
-        ))}
-      </nav>
+      {/* Spacer - Navigation removed, content access via Library */}
+      <div className="flex-1"></div>
 
       {/* User Account Footer */}
       {!collapsed && (

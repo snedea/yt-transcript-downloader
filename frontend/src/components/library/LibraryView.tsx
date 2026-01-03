@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { cacheApi, LibraryItem, TagCount, SearchFilters } from '@/services/api'
 import { SearchBar } from './SearchBar'
-import { VideoCard } from './VideoCard'
+import { ContentCard } from './ContentCard'
 import { UnifiedContentModal } from '@/components/content/UnifiedContentModal'
 import type { ContentType } from '@/types'
 
@@ -298,7 +298,7 @@ export function LibraryView({ onVideoSelect }: LibraryViewProps) {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {results.map(item => (
-                <VideoCard
+                <ContentCard
                   key={item.video_id}
                   item={item}
                   onClick={() => onVideoSelect(item.video_id)}

@@ -4,7 +4,7 @@ import React from 'react'
 import type { LibraryItem } from '@/services/api'
 import type { ContentType } from '@/types'
 
-interface VideoCardProps {
+interface ContentCardProps {
   item: LibraryItem
   onClick: () => void
 }
@@ -22,7 +22,7 @@ const CONTENT_TYPE_INFO: Record<ContentType, { label: string; icon: string; colo
   other: { label: 'Other', icon: '📄', color: 'bg-gray-500' }
 }
 
-export function VideoCard({ item, onClick }: VideoCardProps) {
+export function ContentCard({ item, onClick }: ContentCardProps) {
   // Dynamic thumbnail based on source type
   const thumbnail = item.source_type === 'youtube'
     ? `https://img.youtube.com/vi/${item.video_id}/mqdefault.jpg`
