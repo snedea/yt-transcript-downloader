@@ -5,6 +5,7 @@ import { cacheApi, LibraryItem, TagCount, SearchFilters } from '@/services/api'
 import { SearchBar } from './SearchBar'
 import { ContentCard } from './ContentCard'
 import { UnifiedContentModal } from '@/components/content/UnifiedContentModal'
+import { ConfirmDialog } from './ConfirmDialog'
 import type { ContentType } from '@/types'
 
 interface LibraryViewProps {
@@ -29,6 +30,10 @@ export function LibraryView({ onVideoSelect }: LibraryViewProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showContentModal, setShowContentModal] = useState(false)
+
+  // Delete confirmation
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [itemToDelete, setItemToDelete] = useState<{ id: string; title: string } | null>(null)
 
   // Filters
   const [selectedTypes, setSelectedTypes] = useState<string[]>([])
@@ -131,6 +136,34 @@ export function LibraryView({ onVideoSelect }: LibraryViewProps) {
     fetchResults()
     // Navigate to the newly added content
     onVideoSelect(contentId)
+  }
+
+  const handleDelete = (videoId: string) => {
+    const item = results.find(r => r.video_id === videoId)
+    if (item) {
+      setItemToDelete({ id: videoId, title: item.video_title })
+      setDeleteDialogOpen(true)
+    }
+  }
+
+  const confirmDelete = async () => {
+    if (!itemToDelete) return
+
+    try {
+      await cacheApi.delete(itemToDelete.id)
+      // Refresh the library after deletion
+      fetchResults()
+      setDeleteDialogOpen(false)
+      setItemToDelete(null)
+    } catch (err: any) {
+      console.error('Failed to delete:', err)
+      alert('Failed to delete item: ' + (err.message || 'Unknown error'))
+    }
+  }
+
+  const cancelDelete = () => {
+    setDeleteDialogOpen(false)
+    setItemToDelete(null)
   }
 
   return (
@@ -302,6 +335,7 @@ export function LibraryView({ onVideoSelect }: LibraryViewProps) {
                   key={item.video_id}
                   item={item}
                   onClick={() => onVideoSelect(item.video_id)}
+                  onDelete={handleDelete}
                 />
               ))}
             </div>
@@ -314,6 +348,18 @@ export function LibraryView({ onVideoSelect }: LibraryViewProps) {
         isOpen={showContentModal}
         onClose={() => setShowContentModal(false)}
         onContentAdded={handleContentAdded}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={deleteDialogOpen}
+        title="Delete Content"
+        message={`Are you sure you want to delete "${itemToDelete?.title}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={confirmDelete}
+        onCancel={cancelDelete}
       />
     </div>
   )
