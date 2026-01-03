@@ -56,7 +56,10 @@ First, identify the content type from these categories:
 2. Key Concepts: Extract 5-10 main ideas with DETAILED explanations (2-3 sentences each)
 3. Action Items: List practical takeaways the viewer should remember or do
 4. Keywords: Generate 10-20 tags (lowercase, spaces allowed)
-5. Key Moments: Identify 5-8 significant points with approximate timestamps
+5. Key Moments: Identify 5-8 significant turning points, transitions, or major topics in the video. Each moment MUST include:
+   - timestamp: The time in seconds when this happens
+   - title: A SHORT (3-5 word) descriptive label (e.g., "Introduction to main thesis", "Counter-argument presented", "Real-world example")
+   - description: A 1-2 sentence summary of what happens at this moment and why it's significant
 
 ### For educational content, extract WITH SCHOLARLY DEPTH:
 
@@ -429,7 +432,11 @@ class ContentSummaryService:
 Return a JSON object with: content_type, content_type_confidence, content_type_reasoning, tldr, key_concepts, technical_details (if applicable), action_items, keywords, key_moments, and scholarly_context (for educational content).
 
 IMPORTANT:
-1. For key_moments timestamps, use the [M:SS] markers in the transcript to estimate when each moment occurs. Convert to seconds (e.g., [2:30] = 150 seconds). Distribute moments across the video duration.
+1. For key_moments, EVERY moment must have:
+   - timestamp (in seconds, using [M:SS] markers to estimate position)
+   - title (3-5 word label like "Introduction to topic" or "Main argument presented")
+   - description (1-2 sentence summary of what happens and why it matters)
+   DO NOT return moments with only timestamps - they are useless without titles and descriptions!
 2. For educational/scholarly content, populate the scholarly_context object with: figures (named individuals), sources (texts/manuscripts discussed), debates (scholarly disagreements), evidence_types (archaeological, textual, etc.), methodology (analytical approaches used), and time_periods (historical eras discussed).
 3. Be THOROUGH with key_concepts - extract 5-10 concepts with detailed 2-3 sentence explanations each.
 
