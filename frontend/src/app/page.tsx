@@ -7,7 +7,7 @@ import { ContentDetailHub } from '@/components/content/ContentDetailHub'
 
 type ViewType = 'library' | 'detail'
 
-const SIDEBAR_COLLAPSED_KEY = 'faceteer-sidebar-collapsed'
+const SIDEBAR_COLLAPSED_KEY = 'knowmler-sidebar-collapsed'
 
 export default function Home() {
   const [currentView, setCurrentView] = useState<ViewType>('library')

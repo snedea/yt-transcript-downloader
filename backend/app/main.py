@@ -8,8 +8,8 @@ from app.routers import auth, transcript, playlist, analysis, cache, content, he
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="Faceteer API",
-    description="Universal content analysis API - examine content from multiple perspectives",
+    title="Knowmler API",
+    description="Devour content, extract knowledge - multi-source content analysis API",
     version="1.0.0"
 )
 

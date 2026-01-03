@@ -24,7 +24,7 @@ export function Sidebar({
   const router = useRouter()
   const [isAccountSettingsOpen, setIsAccountSettingsOpen] = useState(false)
 
-  // Removed old navigation items - now just use Faceteer header as home button
+  // Removed old navigation items - now just use Knowmler header as home button
   // All content access happens through Library + ContentDetailHub
 
   const handleLoginClick = () => {
@@ -49,7 +49,7 @@ export function Sidebar({
             onClick={() => onViewChange('library')}
             className="text-lg font-bold text-gray-900 dark:text-white truncate hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer select-none"
           >
-            💎 Faceteer
+            🧠 Knowmler
           </button>
         )}
         {collapsed && (
@@ -57,7 +57,7 @@ export function Sidebar({
             onClick={() => onViewChange('library')}
             className="text-lg font-bold text-gray-900 dark:text-white mx-auto hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer select-none"
           >
-            💎
+            🧠
           </button>
         )}
         {onToggleCollapse && (

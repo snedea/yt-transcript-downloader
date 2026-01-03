@@ -1,4 +1,4 @@
-# Faceteer
+# Knowmler
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/downloads/)
@@ -7,9 +7,9 @@
 [![Next.js 14](https://img.shields.io/badge/Next.js-14+-black.svg)](https://nextjs.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](https://www.docker.com/)
 
-> 💎 **Every angle, every insight—without surrendering hours.**
+> 🧠 **Devour content. Extract knowledge.**
 >
-> Stop consuming content. Start commanding it. Faceteer examines any content from multiple perspectives—paste URLs, upload PDFs, or paste text, then facet it for rhetoric, manipulation, claims, and insights in minutes, not hours.
+> Feed Knowmler any content—YouTube videos, PDFs, web URLs, or plain text—and it noms through it to extract summaries, insights, manipulation patterns, and key moments. Knowledge consumption, elevated.
 
 ## ✨ Features
 
