@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import SingleDownload from '@/components/SingleDownload'
 import BulkDownload from '@/components/BulkDownload'
 import VideoDetail from '@/components/VideoDetail'
@@ -13,11 +13,25 @@ import { PromptGeneratorView } from '@/components/prompts/PromptGeneratorView'
 type ViewType = 'library' | 'new' | 'detail' | 'discover' | 'health' | 'prompts'
 type NewVideoTab = 'single' | 'bulk'
 
+const SIDEBAR_COLLAPSED_KEY = 'yt-analyzer-sidebar-collapsed'
+
 export default function Home() {
   const [currentView, setCurrentView] = useState<ViewType>('library')
   const [newVideoTab, setNewVideoTab] = useState<NewVideoTab>('single')
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    // Initialize from localStorage (only on client)
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(SIDEBAR_COLLAPSED_KEY)
+      return saved === 'true'
+    }
+    return false
+  })
+
+  // Persist sidebar state to localStorage
+  useEffect(() => {
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(sidebarCollapsed))
+  }, [sidebarCollapsed])
 
   const handleVideoSelect = (videoId: string) => {
     setSelectedVideoId(videoId)

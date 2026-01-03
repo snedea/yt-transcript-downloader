@@ -1,12 +1,17 @@
 """Transcript API endpoints"""
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import asyncio
+from sqlmodel import Session
+
 from app.services.youtube import YouTubeService
 from app.services.openai_service import OpenAIService
 from app.services.cache_service import get_cache_service
 from app.utils.url_parser import extract_video_id
+from app.db import get_session
+from app.dependencies import get_current_user
+from app.models.auth import User
 
 router = APIRouter()
 
@@ -66,18 +71,13 @@ class BulkTranscriptResponse(BaseModel):
 
 
 @router.post("/single", response_model=TranscriptResponse)
-async def get_single_transcript(request: TranscriptRequest):
+async def get_single_transcript(
+    request: TranscriptRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
     """
     Fetch transcript for a single YouTube video
-
-    Args:
-        request: Contains video_url, optional clean flag, and use_cache flag
-
-    Returns:
-        Transcript data with video metadata
-
-    Raises:
-        HTTPException: If URL is invalid or transcript unavailable
     """
     try:
         # Extract video ID from URL
@@ -89,7 +89,7 @@ async def get_single_transcript(request: TranscriptRequest):
 
     # Check cache first if enabled
     if request.use_cache:
-        cached = cache.get(video_id)
+        cached = cache.get(session, video_id, current_user.id)
         if cached:
             # For cached results, check if cleaning was requested but cache has uncleaned
             if request.clean and not cached.get('is_cleaned'):
@@ -138,9 +138,11 @@ async def get_single_transcript(request: TranscriptRequest):
 
     # Save to cache
     cache.save(
+        session=session,
         video_id=video_id,
         video_title=video_title,
-        transcript=transcript_text,
+        transcript_text=transcript_text,
+        user_id=current_user.id,
         author=author,
         upload_date=upload_date,
         transcript_data=transcript_data,
@@ -161,18 +163,12 @@ async def get_single_transcript(request: TranscriptRequest):
 
 
 @router.post("/clean", response_model=CleanResponse)
-async def clean_transcript(request: CleanRequest):
+async def clean_transcript(
+    request: CleanRequest,
+    current_user: User = Depends(get_current_user)
+):
     """
     Clean a transcript using GPT-4o-mini
-    
-    Args:
-        request: Contains raw transcript text
-        
-    Returns:
-        Cleaned transcript with token usage
-        
-    Raises:
-        HTTPException: If cleaning fails
     """
     result = await openai_service.clean_transcript(request.transcript)
     
@@ -186,15 +182,12 @@ async def clean_transcript(request: CleanRequest):
 
 
 @router.post("/bulk", response_model=BulkTranscriptResponse)
-async def get_bulk_transcripts(request: BulkTranscriptRequest):
+async def get_bulk_transcripts(
+    request: BulkTranscriptRequest,
+    current_user: User = Depends(get_current_user)
+):
     """
     Fetch transcripts for multiple videos concurrently
-    
-    Args:
-        request: Contains list of video IDs and optional clean flag
-        
-    Returns:
-        Results for each video with success/failure status
     """
     if not request.video_ids:
         raise HTTPException(status_code=400, detail="video_ids list cannot be empty")

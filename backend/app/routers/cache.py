@@ -6,11 +6,15 @@ API endpoints for transcript caching and history.
 
 import logging
 from typing import Optional, Any, Dict, List
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
+from sqlmodel import Session
 
 from app.services.cache_service import get_cache_service
 from app.models.cache import TranscriptHistoryResponse, TranscriptHistoryItem
+from app.db import get_session
+from app.dependencies import get_current_user
+from app.models.auth import User
 
 logger = logging.getLogger(__name__)
 
@@ -43,19 +47,24 @@ class SavePromptsRequest(BaseModel):
 
 
 @router.get("/transcript/{video_id}")
-async def get_cached_transcript(video_id: str):
+async def get_cached_transcript(
+    video_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
     """
     Get a cached transcript by video ID.
-
     Returns the full transcript if cached, or 404 if not found.
-    Includes cached analysis if available.
     """
     cache = get_cache_service()
-    result = cache.get(video_id)
+    result = cache.get(session, video_id, current_user.id)
 
     if not result:
         raise HTTPException(status_code=404, detail="Transcript not found in cache")
 
+    # Map the dict result to the response structure if needed, 
+    # but the dict returned by _to_dict already matches mostly.
+    # We construct the response explicitly to match old API contract.
     return {
         "cached": True,
         "video_id": result["video_id"],
@@ -69,27 +78,21 @@ async def get_cached_transcript(video_id: str):
         "created_at": result["created_at"],
         "last_accessed": result["last_accessed"],
         "access_count": result["access_count"],
-        # Rhetorical analysis (v1.0 - 4 pillars)
         "analysis_result": result.get("analysis_result"),
         "analysis_date": result.get("analysis_date"),
         "has_analysis": result.get("analysis_result") is not None,
-        # Manipulation/Trust analysis (v2.0 - 5 dimensions)
         "manipulation_result": result.get("manipulation_result"),
         "manipulation_date": result.get("manipulation_date"),
         "has_manipulation": result.get("manipulation_result") is not None,
-        # Content summary
         "summary_result": result.get("summary_result"),
         "summary_date": result.get("summary_date"),
         "has_summary": result.get("summary_result") is not None,
-        # Discovery analysis (Kinoshita Pattern)
         "discovery_result": result.get("discovery_result"),
         "discovery_date": result.get("discovery_date"),
         "has_discovery": result.get("discovery_result") is not None,
-        # Health observation analysis
         "health_observation_result": result.get("health_observation_result"),
         "health_observation_date": result.get("health_observation_date"),
         "has_health": result.get("health_observation_result") is not None,
-        # Prompt generator results
         "prompts_result": result.get("prompts_result"),
         "prompts_date": result.get("prompts_date"),
         "has_prompts": result.get("prompts_result") is not None
@@ -99,16 +102,16 @@ async def get_cached_transcript(video_id: str):
 @router.get("/history", response_model=TranscriptHistoryResponse)
 async def get_transcript_history(
     limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0)
+    offset: int = Query(0, ge=0),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Get transcript download history.
-
-    Returns a list of previously downloaded transcripts, ordered by last accessed.
     """
     cache = get_cache_service()
-    items = cache.get_history(limit=limit, offset=offset)
-    total = cache.get_total_count()
+    items = cache.get_history(session, current_user.id, limit=limit, offset=offset)
+    total = cache.get_total_count(session, current_user.id)
 
     return TranscriptHistoryResponse(
         items=[TranscriptHistoryItem(**item) for item in items],
@@ -119,13 +122,15 @@ async def get_transcript_history(
 @router.get("/search")
 async def search_transcripts(
     q: str = Query(..., min_length=2, description="Search query"),
-    limit: int = Query(20, ge=1, le=100)
+    limit: int = Query(20, ge=1, le=100),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Search cached transcripts by title or content.
     """
     cache = get_cache_service()
-    items = cache.search(query=q, limit=limit)
+    items = cache.search(session, q, current_user.id, limit=limit)
 
     return {
         "query": q,
@@ -135,28 +140,33 @@ async def search_transcripts(
 
 
 @router.delete("/transcript/{video_id}")
-async def delete_cached_transcript(video_id: str):
+async def delete_cached_transcript(
+    video_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
     """
     Delete a cached transcript.
     """
     cache = get_cache_service()
-    success = cache.delete(video_id)
+    success = cache.delete(session, video_id, current_user.id)
 
     if not success:
-        raise HTTPException(status_code=500, detail="Failed to delete transcript")
+        raise HTTPException(status_code=500, detail="Failed to delete transcript or not found")
 
     return {"deleted": True, "video_id": video_id}
 
 
 @router.delete("/all")
-async def clear_cache():
+async def clear_cache(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
     """
     Clear all cached transcripts.
-
-    Warning: This cannot be undone!
     """
     cache = get_cache_service()
-    success = cache.clear_all()
+    success = cache.clear_all(session, current_user.id)
 
     if not success:
         raise HTTPException(status_code=500, detail="Failed to clear cache")
@@ -165,28 +175,33 @@ async def clear_cache():
 
 
 @router.get("/stats")
-async def get_cache_stats():
+async def get_cache_stats(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
     """
     Get cache statistics.
     """
     cache = get_cache_service()
-    total = cache.get_total_count()
+    total = cache.get_total_count(session, current_user.id)
 
     return {
         "total_transcripts": total,
-        "storage_path": str(cache.db_path)
+        # "storage_path": str(cache.db_path) # db_path no longer relevant in service directly
     }
 
 
 @router.post("/analysis")
-async def save_analysis(request: SaveAnalysisRequest):
+async def save_analysis(
+    request: SaveAnalysisRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
     """
     Save rhetorical analysis results for a video.
-
-    The video must already exist in the cache (transcript must be saved first).
     """
     cache = get_cache_service()
-    success = cache.save_analysis(request.video_id, request.analysis_result)
+    success = cache.save_analysis(session, request.video_id, request.analysis_result, current_user.id)
 
     if not success:
         raise HTTPException(
@@ -198,12 +213,16 @@ async def save_analysis(request: SaveAnalysisRequest):
 
 
 @router.get("/analysis/{video_id}")
-async def get_cached_analysis(video_id: str):
+async def get_cached_analysis(
+    video_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
     """
     Get cached rhetorical analysis for a video.
     """
     cache = get_cache_service()
-    result = cache.get_analysis(video_id)
+    result = cache.get_analysis(session, video_id, current_user.id)
 
     if not result:
         raise HTTPException(status_code=404, detail="Analysis not found in cache")
@@ -217,14 +236,16 @@ async def get_cached_analysis(video_id: str):
 
 
 @router.post("/summary")
-async def save_summary(request: SaveSummaryRequest):
+async def save_summary(
+    request: SaveSummaryRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
     """
     Save content summary results for a video.
-
-    The video must already exist in the cache (transcript must be saved first).
     """
     cache = get_cache_service()
-    success = cache.save_summary(request.video_id, request.summary_result)
+    success = cache.save_summary(session, request.video_id, request.summary_result, current_user.id)
 
     if not success:
         raise HTTPException(
@@ -236,12 +257,16 @@ async def save_summary(request: SaveSummaryRequest):
 
 
 @router.get("/summary/{video_id}")
-async def get_cached_summary(video_id: str):
+async def get_cached_summary(
+    video_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
     """
     Get cached content summary for a video.
     """
     cache = get_cache_service()
-    result = cache.get_summary(video_id)
+    result = cache.get_summary(session, video_id, current_user.id)
 
     if not result:
         raise HTTPException(status_code=404, detail="Summary not found in cache")
@@ -255,15 +280,16 @@ async def get_cached_summary(video_id: str):
 
 
 @router.post("/manipulation")
-async def save_manipulation(request: SaveManipulationRequest):
+async def save_manipulation(
+    request: SaveManipulationRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
     """
-    Save manipulation/trust analysis results for a video.
-
-    The video must already exist in the cache (transcript must be saved first).
-    This is separate from rhetorical analysis to allow both to coexist.
+    Save manipulation/trust analysis results.
     """
     cache = get_cache_service()
-    success = cache.save_manipulation(request.video_id, request.manipulation_result)
+    success = cache.save_manipulation(session, request.video_id, request.manipulation_result, current_user.id)
 
     if not success:
         raise HTTPException(
@@ -275,12 +301,16 @@ async def save_manipulation(request: SaveManipulationRequest):
 
 
 @router.get("/manipulation/{video_id}")
-async def get_cached_manipulation(video_id: str):
+async def get_cached_manipulation(
+    video_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
     """
-    Get cached manipulation/trust analysis for a video.
+    Get cached manipulation/trust analysis.
     """
     cache = get_cache_service()
-    result = cache.get_manipulation(video_id)
+    result = cache.get_manipulation(session, video_id, current_user.id)
 
     if not result:
         raise HTTPException(status_code=404, detail="Manipulation analysis not found in cache")
@@ -302,21 +332,18 @@ async def advanced_search(
     tags: Optional[List[str]] = Query(None, description="Filter by tags (all must match)"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    order_by: str = Query("last_accessed", regex="^(last_accessed|created_at|title)$")
+    order_by: str = Query("last_accessed", regex="^(last_accessed|created_at|title)$"),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     """
-    Advanced search with full-text search and faceted filtering.
-
-    - **q**: Search query (searches title, transcript, tags)
-    - **content_type**: Filter by content type(s) like 'programming_technical', 'educational'
-    - **has_summary**: Filter by whether video has a summary
-    - **has_analysis**: Filter by whether video has been analyzed
-    - **tags**: Filter by specific tags (all must match)
-    - **order_by**: Sort order - 'last_accessed', 'created_at', or 'title'
+    Advanced search with auth.
     """
     cache = get_cache_service()
     items = cache.advanced_search(
+        session,
         query=q,
+        user_id=current_user.id,
         content_types=content_type,
         has_summary=has_summary,
         has_analysis=has_analysis,
@@ -341,37 +368,41 @@ async def advanced_search(
 
 @router.get("/tags")
 async def get_all_tags(
-    limit: int = Query(100, ge=1, le=500)
+    limit: int = Query(100, ge=1, le=500),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     """
-    Get all unique tags with their counts for faceted search.
-
-    Returns tags sorted by frequency (most used first).
+    Get all unique tags.
     """
     cache = get_cache_service()
-    tags = cache.get_all_tags(limit=limit)
+    tags = cache.get_all_tags(session, limit=limit)
     return {"tags": tags}
 
 
 @router.get("/content-types")
-async def get_content_types():
+async def get_content_types(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
     """
     Get content type distribution.
-
-    Returns count of videos per content type.
     """
     cache = get_cache_service()
-    counts = cache.get_content_type_counts()
+    counts = cache.get_content_type_counts(session)
     return {"content_types": counts}
 
 
 @router.get("/library/stats")
-async def get_library_stats():
+async def get_library_stats(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
     """
-    Get library statistics including total videos, summarized, and analyzed counts.
+    Get library statistics.
     """
     cache = get_cache_service()
-    stats = cache.get_stats()
+    stats = cache.get_stats(session, current_user.id)
 
     return {
         "total": stats["total"],
@@ -383,14 +414,16 @@ async def get_library_stats():
 
 
 @router.post("/discovery")
-async def save_discovery(request: SaveDiscoveryRequest):
+async def save_discovery(
+    request: SaveDiscoveryRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
     """
-    Save discovery (Kinoshita Pattern) analysis results for a video.
-
-    The video must already exist in the cache (transcript must be saved first).
+    Save discovery analysis results.
     """
     cache = get_cache_service()
-    success = cache.save_discovery(request.video_id, request.discovery_result)
+    success = cache.save_discovery(session, request.video_id, request.discovery_result, current_user.id)
 
     if not success:
         raise HTTPException(
@@ -402,12 +435,16 @@ async def save_discovery(request: SaveDiscoveryRequest):
 
 
 @router.get("/discovery/{video_id}")
-async def get_cached_discovery(video_id: str):
+async def get_cached_discovery(
+    video_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
     """
-    Get cached discovery (Kinoshita Pattern) analysis for a video.
+    Get cached discovery analysis.
     """
     cache = get_cache_service()
-    result = cache.get_discovery(video_id)
+    result = cache.get_discovery(session, video_id, current_user.id)
 
     if not result:
         raise HTTPException(status_code=404, detail="Discovery analysis not found in cache")
@@ -421,26 +458,30 @@ async def get_cached_discovery(video_id: str):
 
 
 @router.post("/fts/rebuild")
-async def rebuild_fts_index():
+async def rebuild_fts_index(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
     """
-    Manually rebuild the full-text search index.
-
-    Use this if search results seem incomplete or after data migration.
+    Manually rebuild FTS.
     """
+    # Assuming only authorized users allowed? or all?
     cache = get_cache_service()
     cache.rebuild_fts_index()
-    return {"status": "success", "message": "FTS index rebuilt"}
+    return {"status": "success", "message": "FTS index rebuilt (stub)"}
 
 
 @router.post("/prompts")
-async def save_prompts(request: SavePromptsRequest):
+async def save_prompts(
+    request: SavePromptsRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
     """
-    Save prompt generator results for a video.
-
-    The video must already exist in the cache (transcript must be saved first).
+    Save prompt generator results.
     """
     cache = get_cache_service()
-    success = cache.save_prompts(request.video_id, request.prompts_result)
+    success = cache.save_prompts(session, request.video_id, request.prompts_result, current_user.id)
 
     if not success:
         raise HTTPException(
@@ -452,19 +493,23 @@ async def save_prompts(request: SavePromptsRequest):
 
 
 @router.get("/prompts/{video_id}")
-async def get_cached_prompts(video_id: str):
+async def get_cached_prompts(
+    video_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
     """
-    Get cached prompt generator results for a video.
+    Get cached prompt generator results.
     """
     cache = get_cache_service()
-    result = cache.get_prompts(video_id)
+    result = cache.get_prompts(session, video_id, current_user.id)
 
     if not result:
         raise HTTPException(status_code=404, detail="Prompts not found in cache")
 
     return {
         "video_id": video_id,
-        "prompts": result,
-        "prompts_date": result.get("prompts_date"),
+        "prompts": result["prompts"],
+        "prompts_date": result["prompts_date"],
         "cached": True
     }

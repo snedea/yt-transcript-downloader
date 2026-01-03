@@ -2,13 +2,11 @@
 Health Observations Router
 
 API endpoints for health observation analysis of video content.
-Extracts frames, detects human presence, and analyzes for observable features.
-
-IMPORTANT: This is an EDUCATIONAL tool only - NOT for medical diagnosis.
 """
 
 import logging
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from sqlmodel import Session
 
 from app.models.health_observation import (
     HealthObservationRequest,
@@ -16,7 +14,10 @@ from app.models.health_observation import (
     HEALTH_DISCLAIMER
 )
 from app.services.health_analyzer import get_health_analyzer
-from app.services.cache_service import CacheService
+from app.services.cache_service import get_cache_service
+from app.db import get_session
+from app.dependencies import get_current_user
+from app.models.auth import User
 
 logger = logging.getLogger(__name__)
 
@@ -25,37 +26,12 @@ router = APIRouter(prefix="/api/health", tags=["health"])
 
 @router.post("/observations", response_model=HealthObservationResult)
 async def analyze_health_observations(
-    request: HealthObservationRequest
+    request: HealthObservationRequest,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
 ) -> HealthObservationResult:
     """
     Extract frames from a YouTube video and analyze for observable health features.
-
-    This endpoint:
-    1. Downloads the video temporarily
-    2. Extracts frames at specified intervals
-    3. Filters for frames containing human presence (face, hands, body)
-    4. Analyzes each frame with Claude vision for observable features
-    5. Cleans up all temporary files
-    6. Returns observations with timestamps (no images stored)
-
-    IMPORTANT: This is an EDUCATIONAL tool only - NOT for medical diagnosis.
-    All observations should be reviewed by a healthcare professional.
-
-    Args:
-        request: HealthObservationRequest containing:
-            - video_url: YouTube video URL
-            - video_id: Optional video ID (if already known)
-            - video_title: Optional title (for context)
-            - interval_seconds: Seconds between frame extractions (5-120, default 30)
-            - max_frames: Maximum frames to analyze (1-50, default 20)
-            - skip_if_cached: Return cached results if available (default True)
-
-    Returns:
-        HealthObservationResult with:
-            - Observations grouped by body region
-            - Timestamp links to video
-            - Confidence levels and limitations
-            - Mandatory medical disclaimers
     """
     # Extract video ID from URL if not provided
     video_id = request.video_id
@@ -69,9 +45,9 @@ async def analyze_health_observations(
         )
 
     # Check cache first if requested
+    cache_service = get_cache_service()
     if request.skip_if_cached:
-        cache_service = CacheService()
-        cached = cache_service.get_health_observation(video_id)
+        cached = cache_service.get_health_observation(session, video_id, current_user.id)
         if cached:
             logger.info(f"Returning cached health observation for {video_id}")
             return HealthObservationResult(**cached)
@@ -95,9 +71,8 @@ async def analyze_health_observations(
         )
 
         # Cache the result
-        cache_service = CacheService()
         result_dict = result.model_dump()
-        cache_service.save_health_observation(video_id, result_dict)
+        cache_service.save_health_observation(session, video_id, result_dict, current_user.id)
         logger.info(f"Saved health observation for video {video_id}")
 
         return result
@@ -111,18 +86,16 @@ async def analyze_health_observations(
 
 
 @router.get("/observations/{video_id}", response_model=HealthObservationResult)
-async def get_health_observations(video_id: str) -> HealthObservationResult:
+async def get_health_observations(
+    video_id: str,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+) -> HealthObservationResult:
     """
     Get cached health observations for a video.
-
-    Args:
-        video_id: YouTube video ID
-
-    Returns:
-        HealthObservationResult if cached, 404 if not found
     """
-    cache_service = CacheService()
-    cached = cache_service.get_health_observation(video_id)
+    cache_service = get_cache_service()
+    cached = cache_service.get_health_observation(session, video_id, current_user.id)
 
     if not cached:
         raise HTTPException(
@@ -137,9 +110,7 @@ async def get_health_observations(video_id: str) -> HealthObservationResult:
 async def get_health_status():
     """
     Check the status of health observation services.
-
-    Returns:
-        Dictionary with service availability status
+    Public endpoint.
     """
     analyzer = get_health_analyzer()
 
@@ -159,9 +130,7 @@ async def get_health_status():
 async def get_disclaimer():
     """
     Get the full health observation disclaimer.
-
-    Returns:
-        The complete disclaimer text
+    Public endpoint.
     """
     return {
         "disclaimer": HEALTH_DISCLAIMER,

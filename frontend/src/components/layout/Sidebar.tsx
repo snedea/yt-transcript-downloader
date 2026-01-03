@@ -1,6 +1,8 @@
 'use client'
 
 import React from 'react'
+import { useRouter } from 'next/navigation'
+import { useAuth } from '@/context/AuthContext'
 
 type ViewType = 'library' | 'new' | 'detail' | 'discover' | 'health' | 'prompts'
 
@@ -17,6 +19,8 @@ export function Sidebar({
   collapsed = false,
   onToggleCollapse
 }: SidebarProps) {
+  const { user, logout, isAuthenticated } = useAuth()
+  const router = useRouter()
 
   const navItems = [
     { id: 'library' as const, label: 'Library', icon: LibraryIcon },
@@ -25,6 +29,10 @@ export function Sidebar({
     { id: 'prompts' as const, label: 'Prompts', icon: PromptsIcon },
     { id: 'health' as const, label: 'Health', icon: HealthIcon },
   ]
+
+  const handleLoginClick = () => {
+    router.push('/login')
+  }
 
   return (
     <aside
@@ -96,41 +104,73 @@ export function Sidebar({
       {/* User Account Footer */}
       {!collapsed && (
         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-          <button
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg
-              text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700
-              transition-colors text-sm"
-            onClick={() => {
-              // TODO: Implement login flow
-              console.log('Login clicked')
-            }}
-          >
-            <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center">
-              <UserIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+          {isAuthenticated ? (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700/50">
+                <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center text-indigo-600 dark:text-indigo-300 font-bold">
+                  {user?.full_name ? user.full_name[0].toUpperCase() : user?.email[0].toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-gray-900 dark:text-gray-100 truncate">
+                    {user?.full_name || 'User'}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                    {user?.email}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={logout}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              >
+                Sign out
+              </button>
             </div>
-            <div className="flex-1 text-left">
-              <div className="font-medium text-gray-700 dark:text-gray-300">Guest</div>
-              <div className="text-xs text-gray-500 dark:text-gray-500">Sign in</div>
-            </div>
-          </button>
+          ) : (
+            <button
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg
+                    text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700
+                    transition-colors text-sm"
+              onClick={handleLoginClick}
+            >
+              <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center">
+                <UserIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+              </div>
+              <div className="flex-1 text-left">
+                <div className="font-medium text-gray-700 dark:text-gray-300">Guest</div>
+                <div className="text-xs text-gray-500 dark:text-gray-500">Sign in</div>
+              </div>
+            </button>
+          )}
         </div>
       )}
       {collapsed && (
         <div className="p-2 border-t border-gray-200 dark:border-gray-700">
-          <button
-            className="w-full flex items-center justify-center p-2 rounded-lg
-              text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700
-              transition-colors"
-            onClick={() => {
-              // TODO: Implement login flow
-              console.log('Login clicked')
-            }}
-            title="Sign in"
-          >
-            <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center">
-              <UserIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-            </div>
-          </button>
+          {isAuthenticated ? (
+            <button
+              className="w-full flex items-center justify-center p-2 rounded-lg
+                  text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20
+                  transition-colors"
+              onClick={logout}
+              title={`Sign out (${user?.email})`}
+            >
+              <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center text-indigo-600 dark:text-indigo-300 text-sm font-bold">
+                {user?.full_name ? user.full_name[0].toUpperCase() : user?.email[0].toUpperCase()}
+              </div>
+            </button>
+          ) : (
+            <button
+              className="w-full flex items-center justify-center p-2 rounded-lg
+                    text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700
+                    transition-colors"
+              onClick={handleLoginClick}
+              title="Sign in"
+            >
+              <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center">
+                <UserIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+              </div>
+            </button>
+          )}
         </div>
       )}
     </aside>

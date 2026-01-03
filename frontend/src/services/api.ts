@@ -42,6 +42,66 @@ export const api = axios.create({
   }
 })
 
+// Request interceptor to add auth token
+api.interceptors.request.use(
+  (config) => {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('access_token')
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`
+      }
+    }
+    return config
+  },
+  (error) => Promise.reject(error)
+)
+
+// Response interceptor to handle token refresh
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config
+
+    // Check if error is 401 and we haven't tried to refresh yet
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true
+
+      try {
+        const refreshToken = localStorage.getItem('refresh_token')
+        if (!refreshToken) {
+          throw new Error("No refresh token")
+        }
+
+        // Call refresh endpoint
+        // We use axios directly to avoid interceptor loop, or create a fresh instance
+        const response = await axios.post(`${API_BASE}/api/auth/refresh`, {
+          refresh_token: refreshToken
+        })
+
+        const { access_token, refresh_token: newRefreshToken } = response.data
+
+        localStorage.setItem('access_token', access_token)
+        localStorage.setItem('refresh_token', newRefreshToken)
+
+        // Update header for original request
+        originalRequest.headers.Authorization = `Bearer ${access_token}`
+
+        return api(originalRequest)
+
+      } catch (refreshError) {
+        // Refresh failed, logout
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('refresh_token')
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login'
+        }
+        return Promise.reject(refreshError)
+      }
+    }
+    return Promise.reject(error)
+  }
+)
+
 export const transcriptApi = {
   fetchSingle: async (videoUrl: string, clean: boolean, useCache: boolean = true): Promise<TranscriptResponse> => {
     const response = await api.post<TranscriptResponse>('/api/transcript/single', {

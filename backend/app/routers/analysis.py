@@ -2,20 +2,18 @@
 Analysis Router
 
 API endpoints for rhetorical analysis and manipulation analysis of transcripts.
-
-Supports two analysis modes:
-- v1.0 Rhetorical Analysis: 4 pillars (Logos, Pathos, Ethos, Kairos) + technique detection
-- v2.0 Manipulation Analysis: 5 dimensions + claim verification + segment annotations
+Supports two analysis modes: v1.0 Rhetorical & v2.0 Manipulation
 """
 
 import logging
-from fastapi import APIRouter, HTTPException
+from typing import Optional, Dict, Any
+from fastapi import APIRouter, HTTPException, Depends
+from sqlmodel import Session
 
 from app.models.analysis import AnalysisRequest, AnalysisResult, AnalysisError
 from app.models.manipulation_analysis import (
     ManipulationAnalysisRequest,
-    ManipulationAnalysisResult,
-    AnalysisMode
+    ManipulationAnalysisResult
 )
 from app.models.summary_analysis import (
     ContentSummaryRequest,
@@ -27,8 +25,7 @@ from app.models.discovery import (
 )
 from app.models.prompt_generator import (
     PromptGeneratorRequest,
-    PromptGeneratorResult,
-    PromptCategory
+    PromptGeneratorResult
 )
 from app.models.content import UnifiedContent
 from app.services.rhetorical_analysis import get_analysis_service
@@ -37,7 +34,7 @@ from app.services.summary_service import get_summary_service
 from app.services.discovery_service import DiscoveryService
 from app.services.prompt_generator_service import get_prompt_generator_service
 from app.services.content_extractor import extract_content
-from app.services.cache_service import CacheService
+from app.services.cache_service import get_cache_service
 from app.data.rhetorical_toolkit import (
     RHETORICAL_TECHNIQUES,
     RHETORICAL_PILLARS,
@@ -50,6 +47,9 @@ from app.data.manipulation_toolkit import (
     TECHNIQUE_CATEGORIES as MANIPULATION_CATEGORIES,
     get_manipulation_toolkit_summary
 )
+from app.db import get_session
+from app.dependencies import get_current_user
+from app.models.auth import User
 
 logger = logging.getLogger(__name__)
 
@@ -57,29 +57,12 @@ router = APIRouter(prefix="/api/analysis", tags=["analysis"])
 
 
 @router.post("/rhetorical", response_model=AnalysisResult)
-async def analyze_rhetoric(request: AnalysisRequest) -> AnalysisResult:
+async def analyze_rhetoric(
+    request: AnalysisRequest,
+    current_user: User = Depends(get_current_user)
+) -> AnalysisResult:
     """
     Analyze a transcript for rhetorical techniques.
-
-    This endpoint uses AI (GPT-4) to identify rhetorical techniques,
-    score the four pillars of rhetoric (Logos, Pathos, Ethos, Kairos),
-    and optionally verify potential quotes via web search.
-
-    Args:
-        request: AnalysisRequest containing:
-            - transcript: The full text to analyze
-            - transcript_data: Optional list of segments with timestamps
-            - verify_quotes: Whether to verify quotes via web search (default: True)
-            - video_title: Optional title for context
-            - video_author: Optional author/speaker for context
-
-    Returns:
-        AnalysisResult with complete rhetorical analysis including:
-            - Overall score and grade
-            - Pillar scores (Logos, Pathos, Ethos, Kairos)
-            - All detected techniques with explanations
-            - Quote attributions (verified if requested)
-            - Executive summary and recommendations
     """
     if not request.transcript or len(request.transcript.strip()) < 50:
         raise HTTPException(
@@ -106,36 +89,12 @@ async def analyze_rhetoric(request: AnalysisRequest) -> AnalysisResult:
 
 
 @router.post("/manipulation", response_model=ManipulationAnalysisResult)
-async def analyze_manipulation(request: ManipulationAnalysisRequest) -> ManipulationAnalysisResult:
+async def analyze_manipulation(
+    request: ManipulationAnalysisRequest,
+    current_user: User = Depends(get_current_user)
+) -> ManipulationAnalysisResult:
     """
     Analyze a transcript for manipulation techniques using the 5-dimension framework.
-
-    This endpoint provides enhanced analysis with:
-    - 5 Dimensions: Epistemic Integrity, Argument Quality, Manipulation Risk,
-      Rhetorical Craft, and Fairness/Balance
-    - Claim Detection: Identifies factual, causal, normative, prediction, and
-      prescriptive claims
-    - Claim Verification: Optionally fact-checks claims via web search
-    - Technique Detection: Identifies 34 manipulation techniques across language,
-      reasoning, and propaganda categories
-
-    Args:
-        request: ManipulationAnalysisRequest containing:
-            - transcript: The full text to analyze
-            - transcript_data: Optional list of segments with timestamps
-            - analysis_mode: "quick" (~15s single call) or "deep" (~60s multi-pass)
-            - verify_claims: Whether to verify factual claims via web search
-            - verify_quotes: Whether to verify quote attributions
-            - video_title: Optional title for context
-            - video_author: Optional author/speaker for context
-
-    Returns:
-        ManipulationAnalysisResult with complete 5-dimension analysis including:
-            - Overall score and grade
-            - Dimension scores with explanations
-            - Detected claims with verification status
-            - Manipulation technique annotations
-            - Executive summary with dual interpretations
     """
     if not request.transcript or len(request.transcript.strip()) < 50:
         raise HTTPException(
@@ -171,9 +130,6 @@ async def analyze_manipulation(request: ManipulationAnalysisRequest) -> Manipula
 async def get_analysis_status():
     """
     Check the status of analysis services.
-
-    Returns:
-        Dictionary with service availability status
     """
     analysis_service = get_analysis_service()
     status = await analysis_service.check_services()
@@ -191,12 +147,6 @@ async def get_analysis_status():
 
 @router.get("/toolkit")
 async def get_toolkit_reference():
-    """
-    Get the complete rhetorical toolkit reference.
-
-    Returns all techniques, pillars, and categories that the
-    analysis engine looks for.
-    """
     return {
         "pillars": RHETORICAL_PILLARS,
         "techniques": RHETORICAL_TECHNIQUES,
@@ -208,12 +158,6 @@ async def get_toolkit_reference():
 
 @router.get("/toolkit/summary")
 async def get_toolkit_summary_text():
-    """
-    Get a text summary of the rhetorical toolkit.
-
-    Useful for understanding what the analysis looks for
-    without the full structured data.
-    """
     return {
         "summary": get_toolkit_summary()
     }
@@ -221,41 +165,21 @@ async def get_toolkit_summary_text():
 
 @router.get("/techniques/{technique_id}")
 async def get_technique_details(technique_id: str):
-    """
-    Get details about a specific rhetorical technique.
-
-    Args:
-        technique_id: The ID of the technique (e.g., "anaphora", "chiasmus")
-
-    Returns:
-        Full details about the technique including examples
-    """
     if technique_id not in RHETORICAL_TECHNIQUES:
         raise HTTPException(
             status_code=404,
-            detail=f"Technique '{technique_id}' not found. Use /api/analysis/toolkit to see all techniques."
+            detail=f"Technique '{technique_id}' not found."
         )
-
     return RHETORICAL_TECHNIQUES[technique_id]
 
 
 @router.get("/pillars/{pillar_id}")
 async def get_pillar_details(pillar_id: str):
-    """
-    Get details about a specific rhetorical pillar.
-
-    Args:
-        pillar_id: The ID of the pillar (logos, pathos, ethos, kairos)
-
-    Returns:
-        Full details about the pillar
-    """
     if pillar_id not in RHETORICAL_PILLARS:
         raise HTTPException(
             status_code=404,
-            detail=f"Pillar '{pillar_id}' not found. Valid pillars: logos, pathos, ethos, kairos"
+            detail=f"Pillar '{pillar_id}' not found."
         )
-
     return RHETORICAL_PILLARS[pillar_id]
 
 
@@ -265,12 +189,6 @@ async def get_pillar_details(pillar_id: str):
 
 @router.get("/manipulation/toolkit")
 async def get_manipulation_toolkit_reference():
-    """
-    Get the complete manipulation analysis toolkit reference.
-
-    Returns all dimensions, techniques, and categories that the
-    manipulation analysis engine uses.
-    """
     return {
         "dimensions": DIMENSION_DEFINITIONS,
         "techniques": MANIPULATION_TECHNIQUES,
@@ -282,12 +200,6 @@ async def get_manipulation_toolkit_reference():
 
 @router.get("/manipulation/toolkit/summary")
 async def get_manipulation_toolkit_summary_text():
-    """
-    Get a text summary of the manipulation analysis toolkit.
-
-    Useful for understanding what the analysis looks for
-    without the full structured data.
-    """
     return {
         "summary": get_manipulation_toolkit_summary()
     }
@@ -295,41 +207,21 @@ async def get_manipulation_toolkit_summary_text():
 
 @router.get("/manipulation/dimensions/{dimension_id}")
 async def get_dimension_details(dimension_id: str):
-    """
-    Get details about a specific analysis dimension.
-
-    Args:
-        dimension_id: The ID of the dimension (e.g., "epistemic_integrity")
-
-    Returns:
-        Full details about the dimension
-    """
     if dimension_id not in DIMENSION_DEFINITIONS:
         raise HTTPException(
             status_code=404,
-            detail=f"Dimension '{dimension_id}' not found. Use /api/analysis/manipulation/toolkit to see all dimensions."
+            detail=f"Dimension '{dimension_id}' not found."
         )
-
     return DIMENSION_DEFINITIONS[dimension_id]
 
 
 @router.get("/manipulation/techniques/{technique_id}")
 async def get_manipulation_technique_details(technique_id: str):
-    """
-    Get details about a specific manipulation technique.
-
-    Args:
-        technique_id: The ID of the technique (e.g., "strawman", "fear_salvation")
-
-    Returns:
-        Full details about the technique including examples
-    """
     if technique_id not in MANIPULATION_TECHNIQUES:
         raise HTTPException(
             status_code=404,
-            detail=f"Technique '{technique_id}' not found. Use /api/analysis/manipulation/toolkit to see all techniques."
+            detail=f"Technique '{technique_id}' not found."
         )
-
     return MANIPULATION_TECHNIQUES[technique_id]
 
 
@@ -338,41 +230,12 @@ async def get_manipulation_technique_details(technique_id: str):
 # =========================================================================
 
 @router.post("/summary", response_model=ContentSummaryResult)
-async def analyze_summary(request: ContentSummaryRequest) -> ContentSummaryResult:
+async def analyze_summary(
+    request: ContentSummaryRequest,
+    current_user: User = Depends(get_current_user)
+) -> ContentSummaryResult:
     """
-    Generate a content summary with key concepts, TLDR, and actionable takeaways.
-
-    This is a fast (~10 second) analysis optimized for note-taking and knowledge
-    management. Ideal for exporting to Obsidian or other note-taking apps.
-
-    Features:
-    - Content Type Detection: Identifies if content is programming, tutorial,
-      news, educational, entertainment, etc.
-    - TLDR: 2-3 sentence summary
-    - Key Concepts: Main ideas with brief explanations
-    - Technical Details: For programming content, extracts code, libraries, commands
-    - Action Items: Practical takeaways with priority levels
-    - Keywords/Tags: For organization (Obsidian-compatible)
-    - Key Moments: Important timestamps for quick navigation
-
-    Args:
-        request: ContentSummaryRequest containing:
-            - transcript: The full text to analyze
-            - transcript_data: Optional list of segments with timestamps
-            - video_title: Optional title for context
-            - video_author: Optional author/speaker for context
-            - video_id: Optional YouTube video ID
-            - video_url: Optional full URL for export linking
-
-    Returns:
-        ContentSummaryResult with complete content summary including:
-            - Detected content type with confidence
-            - TLDR summary
-            - Key concepts with explanations
-            - Technical details (if applicable)
-            - Action items with priorities
-            - Keywords and Obsidian tags
-            - Key moments with timestamps
+    Generate a content summary.
     """
     if not request.transcript or len(request.transcript.strip()) < 50:
         raise HTTPException(
@@ -409,43 +272,13 @@ async def analyze_summary(request: ContentSummaryRequest) -> ContentSummaryResul
 # =========================================================================
 
 @router.post("/discovery", response_model=DiscoveryResult)
-async def analyze_discovery(request: DiscoveryRequest) -> DiscoveryResult:
+async def analyze_discovery(
+    request: DiscoveryRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+) -> DiscoveryResult:
     """
-    Perform Discovery Mode analysis using the Kinoshita Pattern.
-
-    This analysis extracts cross-domain knowledge transfer opportunities
-    inspired by how Hiroo Kinoshita discovered EUV lithography by reading
-    papers from other fields.
-
-    Features:
-    - Problem Extraction: Identifies problems, goals, and blockers
-    - Technique Identification: Extracts methods, principles, and mechanisms
-    - Cross-Domain Applications: Generates hypotheses for applying techniques elsewhere
-    - Research Trail: Captures references and sources mentioned
-    - Experiment Ideas: Concrete next steps for exploration
-
-    Accepts content from multiple sources:
-    - YouTube URLs (extracts transcript)
-    - Web URLs (extracts article content)
-    - PDF files (extracts text)
-    - Plain text (direct analysis)
-    - Cached video_id (uses existing transcript)
-
-    Args:
-        request: DiscoveryRequest containing:
-            - source: URL, file path, or raw text (optional if video_id provided)
-            - source_type: Content type (auto-detected if not provided)
-            - video_id: For cached YouTube content
-            - focus_domains: Optional domains to prioritize for suggestions
-            - max_applications: Maximum cross-domain applications (1-10)
-
-    Returns:
-        DiscoveryResult with complete Kinoshita Pattern analysis including:
-            - Problems with blockers and context
-            - Techniques with principles and requirements
-            - Cross-domain applications with confidence scores
-            - Research references
-            - Key insights, recommended reads, and experiment ideas
+    Perform Discovery Mode analysis.
     """
     discovery_service = DiscoveryService()
 
@@ -459,9 +292,9 @@ async def analyze_discovery(request: DiscoveryRequest) -> DiscoveryResult:
     content: UnifiedContent
 
     if request.video_id:
-        # Load from cache
-        cache_service = CacheService()
-        cached = cache_service.get_transcript(request.video_id)
+        # Load from cache using service
+        cache_service = get_cache_service()
+        cached = cache_service.get(session, request.video_id, current_user.id)
 
         if not cached:
             raise HTTPException(
@@ -472,7 +305,8 @@ async def analyze_discovery(request: DiscoveryRequest) -> DiscoveryResult:
         # Build UnifiedContent from cached data
         from app.models.content import ContentSourceType, ContentSegment
 
-        transcript_text = cached.get("cleaned_transcript") or cached.get("transcript", "")
+        # cached is a dict now
+        transcript_text = cached.get("transcript", "")
         if not transcript_text:
             raise HTTPException(
                 status_code=400,
@@ -484,43 +318,37 @@ async def analyze_discovery(request: DiscoveryRequest) -> DiscoveryResult:
             source_type=ContentSourceType.YOUTUBE,
             source_id=request.video_id,
             source_url=f"https://youtube.com/watch?v={request.video_id}",
-            title=cached.get("title", f"Video {request.video_id}"),
+            title=cached.get("video_title", f"Video {request.video_id}"),
             author=cached.get("author"),
             word_count=len(transcript_text.split()),
             character_count=len(transcript_text)
         )
 
     elif request.source:
-        # Extract from provided source
         try:
             content = await extract_content(
                 source=request.source,
                 source_type=request.source_type
             )
-
             if not content.extraction_success:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Content extraction failed: {content.extraction_error}"
                 )
-
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
-
     else:
         raise HTTPException(
             status_code=400,
             detail="Either 'source' or 'video_id' must be provided"
         )
 
-    # Validate content length
     if content.word_count < 50:
         raise HTTPException(
             status_code=400,
             detail="Content must be at least 50 words for meaningful analysis"
         )
 
-    # Perform discovery analysis
     try:
         result = await discovery_service.analyze(
             content=content,
@@ -538,17 +366,15 @@ async def analyze_discovery(request: DiscoveryRequest) -> DiscoveryResult:
 
         # Save to cache if this was a YouTube video
         if request.video_id:
-            cache_service = CacheService()
-            # Convert DiscoveryResult to dict for storage
+            cache_service = get_cache_service()
             result_dict = discovery_result.model_dump() if hasattr(discovery_result, 'model_dump') else discovery_result.dict()
-            cache_service.save_discovery(request.video_id, result_dict)
+            cache_service.save_discovery(session, request.video_id, result_dict, current_user.id)
             logger.info(f"Saved discovery result for video {request.video_id}")
 
         return discovery_result
 
     except HTTPException:
         raise
-
     except Exception as e:
         logger.error(f"Unexpected error during discovery analysis: {e}")
         raise HTTPException(
@@ -562,37 +388,13 @@ async def analyze_discovery(request: DiscoveryRequest) -> DiscoveryResult:
 # =========================================================================
 
 @router.post("/prompts/generate", response_model=PromptGeneratorResult)
-async def generate_prompts(request: PromptGeneratorRequest) -> PromptGeneratorResult:
+async def generate_prompts(
+    request: PromptGeneratorRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+) -> PromptGeneratorResult:
     """
     Generate production-ready prompts for AI tools based on video content.
-
-    Generates prompts for 7 categories (or selected subset):
-    - App Builder (Context Foundry): Build working applications
-    - Research Deep-Dive: Structured research exploration
-    - Devil's Advocate: Challenge assumptions, opposing views
-    - Mermaid Diagrams: Visual diagrams from content
-    - Sora: Video generation prompts
-    - Nano Banana Pro: Infographics and visuals
-    - Validation Frameworks: Testing and validation
-
-    Each prompt is 500-2000 words and includes:
-    - Explicit intent specification (Nate B Jones technique)
-    - Disambiguation questions
-    - Failure conditions and graceful degradation
-    - Semantic structure with <requirements>, <context>, <task> blocks
-    - Measurable success criteria
-
-    Args:
-        request: PromptGeneratorRequest containing:
-            - transcript: Raw text (optional if video_id provided)
-            - video_id: For cached YouTube content
-            - source_text: Any text to generate prompts from
-            - include_discovery: Use discovery analysis if available
-            - include_summary: Use summary if available
-            - categories: Optional list of categories to generate
-
-    Returns:
-        PromptGeneratorResult with 7 production-ready prompts
     """
     service = get_prompt_generator_service()
 
@@ -602,17 +404,15 @@ async def generate_prompts(request: PromptGeneratorRequest) -> PromptGeneratorRe
             detail="No LLM provider available for prompt generation"
         )
 
-    # Get transcript from video_id or direct input
     transcript = request.transcript or request.source_text
     video_title = request.video_title
     video_author = request.video_author
     video_id = request.video_id
     video_url = request.source_url
 
-    # Load from cache if video_id provided
     if request.video_id and not transcript:
-        cache_service = CacheService()
-        cached = cache_service.get_transcript(request.video_id)
+        cache_service = get_cache_service()
+        cached = cache_service.get(session, request.video_id, current_user.id)
 
         if not cached:
             raise HTTPException(
@@ -620,8 +420,8 @@ async def generate_prompts(request: PromptGeneratorRequest) -> PromptGeneratorRe
                 detail=f"Video {request.video_id} not found in cache"
             )
 
-        transcript = cached.get("cleaned_transcript") or cached.get("transcript", "")
-        video_title = video_title or cached.get("title", "")
+        transcript = cached.get("transcript", "")
+        video_title = video_title or cached.get("video_title", "")
         video_url = f"https://www.youtube.com/watch?v={request.video_id}"
 
     if not transcript or len(transcript.strip()) < 100:
@@ -630,27 +430,30 @@ async def generate_prompts(request: PromptGeneratorRequest) -> PromptGeneratorRe
             detail="Transcript or source text required (minimum 100 characters)"
         )
 
-    # Optionally load existing analyses for enrichment
     discovery_summary = None
     content_summary = None
 
     if request.video_id:
-        cache_service = CacheService()
+        cache_service = get_cache_service()
 
         if request.include_discovery:
-            discovery_data = cache_service.get_discovery(request.video_id)
+            discovery_data = cache_service.get_discovery(session, request.video_id, current_user.id)
             if discovery_data:
-                # Extract key insights as summary
-                insights = discovery_data.get("key_insights", [])
-                if insights:
-                    discovery_summary = "Key Insights:\n" + "\n".join(f"- {i}" for i in insights[:10])
+                # discovery_data is {discovery: ..., discovery_date: ...}
+                discovery_inner = discovery_data.get("discovery")
+                if discovery_inner:
+                    # Depending on dict structure.
+                    insights = discovery_inner.get("key_insights", [])
+                    if insights:
+                        discovery_summary = "Key Insights:\n" + "\n".join(f"- {i}" for i in insights[:10])
 
         if request.include_summary:
-            summary_data = cache_service.get_summary(request.video_id)
+            summary_data = cache_service.get_summary(session, request.video_id, current_user.id)
             if summary_data:
-                content_summary = summary_data.get("tldr", "")
+                summary_inner = summary_data.get("summary")
+                if summary_inner:
+                    content_summary = summary_inner.get("tldr", "")
 
-    # Generate prompts
     try:
         result = await service.generate_prompts(
             transcript=transcript,
@@ -673,7 +476,6 @@ async def generate_prompts(request: PromptGeneratorRequest) -> PromptGeneratorRe
 
     except HTTPException:
         raise
-
     except Exception as e:
         logger.error(f"Unexpected error during prompt generation: {e}")
         raise HTTPException(
